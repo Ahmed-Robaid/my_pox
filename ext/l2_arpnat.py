@@ -13,8 +13,7 @@
 # limitations under the License.
 
 """
-First implementation of the arp-nat functionality
-based on the l2_learning switch implementation
+First iimplementation of the ARP_NAT functionality
 """
 
 from pox.core import core
@@ -55,8 +54,10 @@ class LearningSwitch (object):
      Yes:
         2a) Drop packet -- don't forward link-local traffic (LLDP, 802.1x)
             DONE
-        2b) IF THE PACKET IS AN ARP REQ, SEND IT TO CONTROLLER, CHANGE
+        2b) - IF THE PACKET IS AN ARP REQ, SEND IT TO CONTROLLER, CHANGE
             SPA/SHA AND REROUTE IT AND ACT AS NAT
+	    - IF THE PACKET IS ARP REP, LOOK IN THE TABLE AND CHECK IF A REQ IS PENDING
+	      IF IT IS, SWITCH THE COMPONENTS. IF NOT, DROP (?)
   3) Is destination multicast?
      Yes:
         3a) Flood the packet
@@ -77,9 +78,9 @@ class LearningSwitch (object):
     self.connection = connection
     self.transparent = transparent
 
-    # Our table
+    # Our tables
     self.macToPort = {}
-
+    self.arpNat = {}	
     # We want to hear PacketIn messages, so we listen
     # to the connection
     connection.addListeners(self)
@@ -88,7 +89,7 @@ class LearningSwitch (object):
     self.hold_down_expired = _flood_delay == 0
 
     #log.debug("Initializing LearningSwitch, transparent=%s",
-    #          str(self.transparent))
+    #          str(self.transparent))<F2>
 
   def _handle_PacketIn (self, event):
     """
@@ -163,12 +164,25 @@ class LearningSwitch (object):
             
             ether = ethernet()
             ether.type = ethernet.ARP_TYPE
-            ether.dst = $$broadcast/depends on what we know
+            ether.dst = 'ff:ff:ff:ff:ff:ff'
             ether.src = $$controller.src
             ether.payload = arp_nat
 
         elif packet.payload.opcode == arp.REPLY:
-            print culoculoculo
+	    if [packet.payload.protodst,packet.payload.hwdst] in self.arpNat:
+#		if self.arpNat[packet.payload.protodst,packet.payload.hwdst] == [packet.payload.protosrc,packet.payload.hwsrc]:
+		    arp_natted = arp()
+            	    arp_natted.hwsrc = packet.payload.hwsrc
+	            arp_natted.hwdst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][0]
+        	    arp_natted.protosrc = packet.payload.protosrc
+	            arp_natted.protodst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][1]
+	            arp_natted.opcode = arp.REPLY
+
+	            ether = ethernet()
+	            ether.type = ethernet.ARP_TYPE
+        	    ether.dst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][0]
+	            ether.src = packet.payload.hwsrc
+	            ether.payload = arp_natted
     """
     if packet.dst.is_multicast:
       flood() # 3a
