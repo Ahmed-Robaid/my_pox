@@ -20,7 +20,10 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpid_to_str, str_to_dpid
 from pox.lib.util import str_to_bool
+from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
+from pox.lib.packet.arp import arp
 import time
+import socket
 
 log = core.getLogger()
 
@@ -77,7 +80,8 @@ class LearningSwitch (object):
     # Switch we'll be adding L2 learning switch capabilities to
     self.connection = connection
     self.transparent = transparent
-
+    self.ip = socket.gethostbyname(socket.gethostname())
+    self.mac = '00:11:22:33:44:55'
     # Our tables
     self.macToPort = {}
     self.arpNat = {}	
@@ -149,41 +153,44 @@ class LearningSwitch (object):
       if packet.type == packet.LLDP_TYPE or packet.dst.isBridgeFiltered():
         drop() # 2a
         return
-    """
+    
     if packet.type == packet.ARP_TYPE:
 
         ### do we have an ARP table in the controller as well?
 
         if packet.payload.opcode == arp.REQUEST:
             arp_nat = arp()
-            arp_nat.hwsrc = $$controller_hwaddress
+            arp_nat.hwsrc = self.mac
             # arp_nat.hwdst = we dont know this, we want to discover it
-            arp_nat.protosrc = $$$controller_protosrc
+            arp_nat.protosrc = self.ip
             arp_nat.protodst = packet.payload.protodst
             arp_nat.opcode = arp.REQUEST
             
             ether = ethernet()
             ether.type = ethernet.ARP_TYPE
             ether.dst = 'ff:ff:ff:ff:ff:ff'
-            ether.src = $$controller.src
+            ether.src = self.mac
             ether.payload = arp_nat
 
+	    if packet.payload.protodst in self.arpNat:
+	    	self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc]) 
+	    else:
+	    	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
+
         elif packet.payload.opcode == arp.REPLY:
-	    if [packet.payload.protodst,packet.payload.hwdst] in self.arpNat:
-#		if self.arpNat[packet.payload.protodst,packet.payload.hwdst] == [packet.payload.protosrc,packet.payload.hwsrc]:
+	    if (self.arpNat[packet.payload.protosrc]):		
 		    arp_natted = arp()
             	    arp_natted.hwsrc = packet.payload.hwsrc
-	            arp_natted.hwdst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][0]
         	    arp_natted.protosrc = packet.payload.protosrc
-	            arp_natted.protodst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][1]
+	 	    arp_natted.hwdst, arp_natted.protodst = self.arpNat[packet.payload.protosrc].pop()
 	            arp_natted.opcode = arp.REPLY
 
 	            ether = ethernet()
 	            ether.type = ethernet.ARP_TYPE
-        	    ether.dst = self.arpNat[packet.payload.protodst, packet.payload.hwdst][0]
-	            ether.src = packet.payload.hwsrc
+        	    ether.dst = arp_natted.hwdst
+	            ether.src = arp_natted.hwsrc
 	            ether.payload = arp_natted
-    """
+    		    
     if packet.dst.is_multicast:
       flood() # 3a
     else:
