@@ -17,11 +17,17 @@ First iimplementation of the ARP_NAT functionality
 """
 
 from pox.core import core
+import pox
+
 import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpid_to_str, str_to_dpid
 from pox.lib.util import str_to_bool
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
+from pox.lib.packet,ipv4 import ipv4
 from pox.lib.packet.arp import arp
+from pox.lib.addresses import IPAddr, EthAddr
+
+from pox.lib.revent import *
 import time
 import socket
 
@@ -101,6 +107,8 @@ class LearningSwitch (object):
     """
 
     packet = event.parsed
+    dpid = event.connection.dpid
+    inport = event.port
 
     def flood (message = None):
       """ Floods the packet """
@@ -159,9 +167,30 @@ class LearningSwitch (object):
         ### do we have an ARP table in the controller as well?
 
         if packet.payload.opcode == arp.REQUEST:
-            arp_nat = arp()
+            
+	    r = arp()
+	    r.hwtype = r.HW_TYPE_ETHERNET
+	    r.prototype = PROTO_TYPE_IP
+	    r.hwlen = 6
+	    r.protolen = r.protolen
+	    r.opcode = r..REQUEST
+	    r.hwdst = ETHER_BROADCAST
+	    r.protodst = packet.payload.protodst
+	    r.protosrc = self.ip
+   	    r.hwsrc = self.mac
+    	    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+  	    e.setpaylaod(r)
+	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+	    msg = of.ofp_packet_out()
+	    msg.data = e.pack()
+	    msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
+	    msg.in_port = inport
+	    event.connection.send(msg)
+	    """
+	    arp_nat = arp()
             arp_nat.hwsrc = self.mac
             # arp_nat.hwdst = we dont know this, we want to discover it
+ 	    
             arp_nat.protosrc = self.ip
             arp_nat.protodst = packet.payload.protodst
             arp_nat.opcode = arp.REQUEST
@@ -171,7 +200,7 @@ class LearningSwitch (object):
             ether.dst = 'ff:ff:ff:ff:ff:ff'
             ether.src = self.mac
             ether.payload = arp_nat
-
+	    """
 	    if packet.payload.protodst in self.arpNat:
 	    	self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc]) 
 	    else:
@@ -179,6 +208,26 @@ class LearningSwitch (object):
 
         elif packet.payload.opcode == arp.REPLY:
 	    if (self.arpNat[packet.payload.protosrc]):		
+		    
+		    r = arp()
+	            r.hwtype = r.HW_TYPE_ETHERNET
+        	    r.prototype = PROTO_TYPE_IP
+	            r.hwlen = 6
+	            r.protolen = r.protolen
+        	    r.opcode = r.REPLY
+		    r.hwdst, r.protodst = self.arpNat[packet.payload.protosrc].pop()
+  		    r.hwsrc = packet.payload.hwsrc
+		    r.protosrc = packet.payload.protosrc
+
+		    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+            	    e.setpaylaod(r)
+            	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+		    msg = of.ofp_packet_out()
+	            msg.data = e.pack()
+        	    msg.actions.append(of.ofp_action_output(port = inport))
+	            # msg.in_port = inport
+        	    event.connection.send(msg)
+		    """
 		    arp_natted = arp()
             	    arp_natted.hwsrc = packet.payload.hwsrc
         	    arp_natted.protosrc = packet.payload.protosrc
@@ -190,7 +239,9 @@ class LearningSwitch (object):
         	    ether.dst = arp_natted.hwdst
 	            ether.src = arp_natted.hwsrc
 	            ether.payload = arp_natted
-    		    
+    		    """
+	    else:
+		   drop()
     if packet.dst.is_multicast:
       flood() # 3a
     else:
