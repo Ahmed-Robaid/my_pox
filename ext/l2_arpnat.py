@@ -23,7 +23,7 @@ import pox.openflow.libopenflow_01 as of
 from pox.lib.util import dpid_to_str, str_to_dpid
 from pox.lib.util import str_to_bool
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
-from pox.lib.packet,ipv4 import ipv4
+from pox.lib.packet.ipv4 import ipv4
 from pox.lib.packet.arp import arp
 from pox.lib.addresses import IPAddr, EthAddr
 
@@ -173,7 +173,7 @@ class LearningSwitch (object):
 	    r.prototype = PROTO_TYPE_IP
 	    r.hwlen = 6
 	    r.protolen = r.protolen
-	    r.opcode = r..REQUEST
+	    r.opcode = r.REQUEST
 	    r.hwdst = ETHER_BROADCAST
 	    r.protodst = packet.payload.protodst
 	    r.protosrc = self.ip
