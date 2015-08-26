@@ -167,52 +167,36 @@ class LearningSwitch (object):
         ### do we have an ARP table in the controller as well?
 
         if packet.payload.opcode == arp.REQUEST:
-            if (packet.payload.protodst in self.arpNat) and (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
-                self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc])
-                print self.arpNat[packet.payload.protodst]
-            else:
-                self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
-	    r = arp()
-	    r.hwtype = r.HW_TYPE_ETHERNET
-	    r.prototype = r.PROTO_TYPE_IP
-	    r.hwlen = 6
-	    r.protolen = r.protolen
-	    r.opcode = r.REQUEST
-	    r.hwdst = ETHER_BROADCAST
-	    r.protodst = packet.payload.protodst
-	    r.protosrc = self.ip 
-   	    r.hwsrc = self.mac
-    	    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
-  	    e.payload = r 
-	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-	    msg = of.ofp_packet_out()
-	    msg.data = e.pack()
-	    msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
-	    msg.in_port = inport
-	    event.connection.send(msg)
-	    """
-	    arp_nat = arp()
-            arp_nat.hwsrc = self.mac
-            # arp_nat.hwdst = we dont know this, we want to discover it
- 	    
-            arp_nat.protosrc = self.ip
-            arp_nat.protodst = packet.payload.protodst
-            arp_nat.opcode = arp.REQUEST
-            
-            ether = ethernet()
-            ether.type = ethernet.ARP_TYPE
-            ether.dst = 'ff:ff:ff:ff:ff:ff'
-            ether.src = self.mac
-            ether.payload = arp_nat
-	    
-	    if packet.payload.protodst in self.arpNat:
-	    	self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc]) 
-		print self.arpNat[packet.payload.protodst]
-	    else:
-	    	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
-	    """
-        elif packet.payload.opcode == arp.REPLY:
-	    if packet.payload.protosrc in self.arpNat:		
+	    if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
+	        if (packet.payload.protodst in self.arpNat):
+        	        self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc])
+                	print self.arpNat
+			print "222"		
+            	else:
+                	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
+                	print self.arpNat
+			print "111"
+	    	r = arp()
+	    	r.hwtype = r.HW_TYPE_ETHERNET
+	    	r.prototype = r.PROTO_TYPE_IP
+	    	r.hwlen = 6
+	    	r.protolen = r.protolen
+	    	r.opcode = r.REQUEST
+	    	r.hwdst = ETHER_BROADCAST
+	    	r.protodst = packet.payload.protodst
+	    	r.protosrc = self.ip 
+   	    	r.hwsrc = self.mac
+    	    	e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+  	    	e.payload = r 
+	    	log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+	    	msg = of.ofp_packet_out()
+	    	msg.data = e.pack()
+	    	msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
+	    	msg.in_port = inport
+	    	event.connection.send(msg)
+        
+	elif packet.payload.opcode == arp.REPLY:
+	    if (self.arpNat[packet.payload.protosrc]):		
 		    
 		    r = arp()
 	            r.hwtype = r.HW_TYPE_ETHERNET
