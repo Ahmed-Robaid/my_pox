@@ -230,6 +230,7 @@ class LearningSwitch (object):
             else:
                 drop()
         return
+    
     if packet.dst.is_multicast:
       flood() # 3a
     else:
