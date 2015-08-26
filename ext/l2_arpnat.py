@@ -86,7 +86,7 @@ class LearningSwitch (object):
     # Switch we'll be adding L2 learning switch capabilities to
     self.connection = connection
     self.transparent = transparent
-    self.ip = IPAddr("127.0.0.1")
+    self.ip = IPAddr("10.0.0.11")
     self.mac = EthAddr("00:11:22:33:44:55")
     # Our tables
     self.macToPort = {}
@@ -154,126 +154,82 @@ class LearningSwitch (object):
         msg.in_port = event.port
         self.connection.send(msg)
 
+    def drop_arp ():
+        msg = of.ofp_flow_mod()
+        msg.match = of.ofp_match.from_packet(packet)
+        msg.idle_timeout = 10
+        msg.hard_timeout = 10
+        msg.buffed_id = event.ofp.buffer_id
+        msg.in_port = event.port
+        self.connection.send(msg)
+
     self.macToPort[packet.src] = event.port # 1
     #print "self.src = " + self.src
     #print "self.hwsrc = " + self.hwsrc
+    match = of.ofp_match.from_packet(packet)
     if not self.transparent: # 2
       if packet.type == packet.LLDP_TYPE or packet.dst.isBridgeFiltered():
         drop() # 2a
         return
     
-    if packet.type == packet.ARP_TYPE:
-
+    if match.dl_type == packet.ARP_TYPE:
+        drop_arp()
         ### do we have an ARP table in the controller as well?
 
-        if packet.payload.opcode == arp.REQUEST:
-<<<<<<< HEAD
+        if match.nw_proto == arp.REQUEST:
             
-	    r = arp()
-	    r.hwtype = r.HW_TYPE_ETHERNET
-	    r.prototype = PROTO_TYPE_IP
-	    r.hwlen = 6
-	    r.protolen = r.protolen
-	    r.opcode = r.REQUEST
-	    r.hwdst = ETHER_BROADCAST
-	    r.protodst = packet.payload.protodst
-	    r.protosrc = self.ip
-   	    r.hwsrc = self.mac
-    	    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
-  	    e.setpaylaod(r)
-	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-	    msg = of.ofp_packet_out()
-	    msg.data = e.pack()
-	    msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
-	    msg.in_port = inport
-	    event.connection.send(msg)
-	    """
-	    arp_nat = arp()
-            arp_nat.hwsrc = self.mac
-            # arp_nat.hwdst = we dont know this, we want to discover it
- 	    
-            arp_nat.protosrc = self.ip
-            arp_nat.protodst = packet.payload.protodst
-            arp_nat.opcode = arp.REQUEST
-            
-            ether = ethernet()
-            ether.type = ethernet.ARP_TYPE
-            ether.dst = 'ff:ff:ff:ff:ff:ff'
-            ether.src = self.mac
-            ether.payload = arp_nat
-	    """
-	    if packet.payload.protodst in self.arpNat:
-	    	self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc]) 
-	    else:
-	    	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
+            if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
 
-        elif packet.payload.opcode == arp.REPLY:
-=======
-	    if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
-	        if (packet.payload.protodst in self.arpNat):
-        	        self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc])
-                	print self.arpNat
-			print "222"		
-            	else:
-                	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
-                	print self.arpNat
-			print "111"
-	    	r = arp()
-	    	r.hwtype = r.HW_TYPE_ETHERNET
-	    	r.prototype = r.PROTO_TYPE_IP
-	    	r.hwlen = 6
-	    	r.protolen = r.protolen
-	    	r.opcode = r.REQUEST
-	    	r.hwdst = ETHER_BROADCAST
-	    	r.protodst = packet.payload.protodst
-	    	r.protosrc = self.ip 
-   	    	r.hwsrc = self.mac
-    	    	e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
-  	    	e.payload = r 
-	    	log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-	    	msg = of.ofp_packet_out()
-	    	msg.data = e.pack()
-	    	msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
-	    	msg.in_port = inport
-	    	event.connection.send(msg)
+                if (packet.payload.protodst in self.arpNat):
+                    self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, event.port])
+
+                else:
+                    self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, event.port]]
+
+                r = arp()
+                r.hwtype = r.HW_TYPE_ETHERNET
+                r.prototype = r.PROTO_TYPE_IP
+                r.hwlen = 6
+                r.protolen = r.protolen
+                r.opcode = r.REQUEST
+                r.hwdst = ETHER_BROADCAST
+                r.protodst = packet.payload.protodst
+                r.protosrc = self.ip 
+                r.hwsrc = self.mac
+                e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+                e.payload = r 
+                log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+                msg = of.ofp_packet_out()
+                msg.data = e.pack()
+                msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
+                # msg.in_port = inport
+                event.connection.send(msg)
+
         
-	elif packet.payload.opcode == arp.REPLY:
->>>>>>> 19c3be50c6c7cdf2f28d762ad42d6ea227fdadaa
-	    if (self.arpNat[packet.payload.protosrc]):		
-		    
-		    r = arp()
-	            r.hwtype = r.HW_TYPE_ETHERNET
-        	    r.prototype = r.PROTO_TYPE_IP
-	            r.hwlen = 6
-	            r.protolen = r.protolen
-        	    r.opcode = r.REPLY
-		    r.hwdst, r.protodst = self.arpNat[packet.payload.protosrc].pop()
-  		    r.hwsrc = packet.payload.hwsrc
-		    r.protosrc = packet.payload.protosrc
-
-		    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
-            	    e.set_payload(r)
-            	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-		    msg = of.ofp_packet_out()
-	            msg.data = e.pack()
-        	    msg.actions.append(of.ofp_action_output(port = inport))
-	            # msg.in_port = inport
-        	    event.connection.send(msg)
-		    """
-		    arp_natted = arp()
-            	    arp_natted.hwsrc = packet.payload.hwsrc
-        	    arp_natted.protosrc = packet.payload.protosrc
-	 	    arp_natted.hwdst, arp_natted.protodst = self.arpNat[packet.payload.protosrc].pop()
-	            arp_natted.opcode = arp.REPLY
-
-	            ether = ethernet()
-	            ether.type = ethernet.ARP_TYPE
-        	    ether.dst = arp_natted.hwdst
-	            ether.src = arp_natted.hwsrc
-	            ether.payload = arp_natted
-    		    """
-	    else:
-		   drop()
+        elif match.nw_proto == arp.REPLY:   
+            
+            if (self.arpNat[packet.payload.protosrc]):		
+                r = arp()
+                r.hwtype = r.HW_TYPE_ETHERNET
+                r.prototype = r.PROTO_TYPE_IP
+                r.hwlen = 6
+                r.protolen = r.protolen
+                r.opcode = r.REPLY
+                r.hwdst, r.protodst, outport = self.arpNat[packet.payload.protosrc].pop()
+                r.hwsrc = packet.payload.hwsrc
+                r.protosrc = packet.payload.protosrc
+                e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+                e.set_payload(r)
+                log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+                
+                msg = of.ofp_packet_out()
+                msg.data = e.pack()
+                msg.actions.append(of.ofp_action_output(port = outport))
+                # msg.in_port = inport
+                event.connection.send(msg)
+            else:
+                drop()
+        return
     if packet.dst.is_multicast:
       flood() # 3a
     else:
@@ -297,7 +253,7 @@ class LearningSwitch (object):
         msg.actions.append(of.ofp_action_output(port = port))
         msg.data = event.ofp # 6a
         self.connection.send(msg)
-
+    
 
 class l2_learning (object):
   """
