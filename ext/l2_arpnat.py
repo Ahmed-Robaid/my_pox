@@ -170,7 +170,7 @@ class LearningSwitch (object):
             
 	    r = arp()
 	    r.hwtype = r.HW_TYPE_ETHERNET
-	    r.prototype = r.PROTO_TYPE_IP
+	    r.prototype = PROTO_TYPE_IP
 	    r.hwlen = 6
 	    r.protolen = r.protolen
 	    r.opcode = r.REQUEST
