@@ -171,11 +171,9 @@ class LearningSwitch (object):
 	        if (packet.payload.protodst in self.arpNat):
         	        self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc])
                 	print self.arpNat
-			print "222"		
             	else:
                 	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
                 	print self.arpNat
-			print "111"
 	    	r = arp()
 	    	r.hwtype = r.HW_TYPE_ETHERNET
 	    	r.prototype = r.PROTO_TYPE_IP
@@ -204,7 +202,11 @@ class LearningSwitch (object):
 	            r.hwlen = 6
 	            r.protolen = r.protolen
         	    r.opcode = r.REPLY
+		    print "BEFORE"
+		    print self.arpNat
 		    r.hwdst, r.protodst = self.arpNat[packet.payload.protosrc].pop()
+		    print "AFTER"
+		    print self.arpNat
   		    r.hwsrc = packet.payload.hwsrc
 		    r.protosrc = packet.payload.protosrc
 
