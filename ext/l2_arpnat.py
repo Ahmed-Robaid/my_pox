@@ -86,8 +86,8 @@ class LearningSwitch (object):
     # Switch we'll be adding L2 learning switch capabilities to
     self.connection = connection
     self.transparent = transparent
-    self.ip = socket.gethostbyname(socket.gethostname())
-    self.mac = '00:11:22:33:44:55'
+    self.ip = IPAddr("127.0.0.1")
+    self.mac = EthAddr("00:11:22:33:44:55")
     # Our tables
     self.macToPort = {}
     self.arpNat = {}	
@@ -167,6 +167,7 @@ class LearningSwitch (object):
         ### do we have an ARP table in the controller as well?
 
         if packet.payload.opcode == arp.REQUEST:
+<<<<<<< HEAD
             
 	    r = arp()
 	    r.hwtype = r.HW_TYPE_ETHERNET
@@ -207,11 +208,42 @@ class LearningSwitch (object):
 	    	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
 
         elif packet.payload.opcode == arp.REPLY:
+=======
+	    if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
+	        if (packet.payload.protodst in self.arpNat):
+        	        self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc])
+                	print self.arpNat
+			print "222"		
+            	else:
+                	self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc]]
+                	print self.arpNat
+			print "111"
+	    	r = arp()
+	    	r.hwtype = r.HW_TYPE_ETHERNET
+	    	r.prototype = r.PROTO_TYPE_IP
+	    	r.hwlen = 6
+	    	r.protolen = r.protolen
+	    	r.opcode = r.REQUEST
+	    	r.hwdst = ETHER_BROADCAST
+	    	r.protodst = packet.payload.protodst
+	    	r.protosrc = self.ip 
+   	    	r.hwsrc = self.mac
+    	    	e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+  	    	e.payload = r 
+	    	log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+	    	msg = of.ofp_packet_out()
+	    	msg.data = e.pack()
+	    	msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
+	    	msg.in_port = inport
+	    	event.connection.send(msg)
+        
+	elif packet.payload.opcode == arp.REPLY:
+>>>>>>> 19c3be50c6c7cdf2f28d762ad42d6ea227fdadaa
 	    if (self.arpNat[packet.payload.protosrc]):		
 		    
 		    r = arp()
 	            r.hwtype = r.HW_TYPE_ETHERNET
-        	    r.prototype = PROTO_TYPE_IP
+        	    r.prototype = r.PROTO_TYPE_IP
 	            r.hwlen = 6
 	            r.protolen = r.protolen
         	    r.opcode = r.REPLY
@@ -220,7 +252,7 @@ class LearningSwitch (object):
 		    r.protosrc = packet.payload.protosrc
 
 		    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
-            	    e.setpaylaod(r)
+            	    e.set_payload(r)
             	    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
 		    msg = of.ofp_packet_out()
 	            msg.data = e.pack()
