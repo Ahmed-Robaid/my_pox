@@ -36,7 +36,7 @@ log = core.getLogger()
 # We don't want to flood immediately when a switch connects.
 # Can be overriden on commandline.
 _flood_delay = 0
-
+arpNat = {}
 class LearningSwitch (object):
   """
   The learning switch "brain" associated with a single OpenFlow switch.
@@ -90,7 +90,6 @@ class LearningSwitch (object):
     self.mac = EthAddr("00:11:22:33:44:55")
     # Our tables
     self.macToPort = {}
-    self.arpNat = {}	
     # We want to hear PacketIn messages, so we listen
     # to the connection
     connection.addListeners(self)
@@ -173,18 +172,18 @@ class LearningSwitch (object):
         return
     
     if match.dl_type == packet.ARP_TYPE:
-        drop_arp()
+        #drop_arp()
         ### do we have an ARP table in the controller as well?
 
         if match.nw_proto == arp.REQUEST:
             
             if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
 
-                if (packet.payload.protodst in self.arpNat):
-                    self.arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, event.port])
+                if (packet.payload.protodst in arpNat):
+                    arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, event.port])
 
                 else:
-                    self.arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, event.port]]
+                    arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, event.port]]
 
                 r = arp()
                 r.hwtype = r.HW_TYPE_ETHERNET
@@ -204,31 +203,38 @@ class LearningSwitch (object):
                 msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
                 # msg.in_port = inport
                 event.connection.send(msg)
-
+            else:
+                flood()
         
         elif match.nw_proto == arp.REPLY:   
-            
-            if (self.arpNat[packet.payload.protosrc]):		
+            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):		
                 r = arp()
                 r.hwtype = r.HW_TYPE_ETHERNET
                 r.prototype = r.PROTO_TYPE_IP
                 r.hwlen = 6
                 r.protolen = r.protolen
                 r.opcode = r.REPLY
-                r.hwdst, r.protodst, outport = self.arpNat[packet.payload.protosrc].pop()
+                r.hwdst, r.protodst, outport = arpNat[packet.payload.protosrc].pop()
                 r.hwsrc = packet.payload.hwsrc
                 r.protosrc = packet.payload.protosrc
-                e = ethernet(type=ethernet.ARP_TYPE, src=self.mac,dst=ETHER_BROADCAST)
+                e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
                 e.set_payload(r)
                 log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
                 
                 msg = of.ofp_packet_out()
                 msg.data = e.pack()
-                msg.actions.append(of.ofp_action_output(port = outport))
-                # msg.in_port = inport
+                msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
+                msg.in_port = inport
                 event.connection.send(msg)
-            else:
-                drop()
+            #else:
+                #flood()
+                #msg = of.ofp_packet_out()
+                #msg.match = of.ofp_match.from_packet(packet,event.port)
+                #msg.idle_timeout = 10
+                #msg.hard_timeout = 30
+                #msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
+                #msg.data = event.ofp
+                #self.connection.send(msg)
         return
     
     if packet.dst.is_multicast:
