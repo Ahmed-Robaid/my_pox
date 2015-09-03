@@ -17,12 +17,12 @@ TODO list:
 	- handle replies
 	DONE		
 	```python
-		if op == is-at:
-			if [hwdst,pdst] is in table as [hwnew, pnew]:
-				swap [hwdst,pdst] with [hwsrc,psrc]
-				sendto(hwsrc,psrc)
-			else:
-				flood()
+		if op == is-at: <br />
+			if [hwdst,pdst] is in table as [hwnew, pnew]:<br />
+				swap [hwdst,pdst] with [hwsrc,psrc]<br />
+				sendto(hwsrc,psrc)<br />
+			else:<br />
+				flood()<br />
 	```
 	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)
 
