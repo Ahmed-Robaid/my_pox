@@ -226,8 +226,8 @@ class LearningSwitch (object):
                 msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
                 msg.in_port = inport
                 event.connection.send(msg)
-            #else:
-                #flood()
+            else:
+                flood()
                 #msg = of.ofp_packet_out()
                 #msg.match = of.ofp_match.from_packet(packet,event.port)
                 #msg.idle_timeout = 10
