@@ -21,7 +21,7 @@ TODO list:
 				swap [hwdst,pdst] with [hwsrc,psrc]
 				sendto(hwsrc,psrc)
 			else:
-				dump() # ????
+				flood()
 	
 	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)
 
