@@ -16,12 +16,14 @@ TODO list:
 5) receive back the reply, swap back the destination with the correct one, 
 	- handle replies
 	DONE		
+	```
 		if op == is-at:
 			if [hwdst,pdst] is in table as [hwnew, pnew]:
 				swap [hwdst,pdst] with [hwsrc,psrc]
 				sendto(hwsrc,psrc)
 			else:
 				flood()
+	```
 	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)
 
 6) Write report on controller and check possible interactions with host_tracker component
