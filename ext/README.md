@@ -22,7 +22,6 @@ TODO list:
 				sendto(hwsrc,psrc)
 			else:
 				flood()
-	
 	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)
 
 6) Write report on controller and check possible interactions with host_tracker component
