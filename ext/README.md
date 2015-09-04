@@ -13,8 +13,9 @@ TODO list:
 4) send natted arp request to the destination  
 	DONE  
 
-5) receive back the reply, swap back the destination with the correct one, 
+5) receive back the reply, swap back the destination with the correct one,  
 	- handle replies  
+	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)  
 	DONE  
 
 	```  
@@ -25,6 +26,6 @@ TODO list:
 			else:  
 				flood()  
 	```  
-	- delete (?) the entry from the table, in order not to keep posoned entries (maybe keep for a while)  
+ 
   
 6) Write report on controller and check possible interactions with host_tracker component  
