@@ -20,12 +20,14 @@ from pox.core import core
 import pox
 
 import pox.openflow.libopenflow_01 as of
+from collections import defaultdict
 from pox.lib.util import dpid_to_str, str_to_dpid
 from pox.lib.util import str_to_bool
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
 from pox.lib.packet.ipv4 import ipv4
 from pox.lib.packet.arp import arp
 from pox.lib.addresses import IPAddr, EthAddr
+from pox.openflow.discovery import Discovery
 
 from pox.lib.revent import *
 import time
@@ -37,6 +39,7 @@ log = core.getLogger()
 # Can be overriden on commandline.
 _flood_delay = 0
 arpNat = {}
+
 class LearningSwitch (object):
   """
   The learning switch "brain" associated with a single OpenFlow switch.
@@ -94,10 +97,11 @@ class LearningSwitch (object):
     # to the connection
     connection.addListeners(self)
 
+
     # We just use this to know when to log a helpful message
     self.hold_down_expired = _flood_delay == 0
 
-    #log.debug("Initializing LearningSwitch, transparent=%s",
+    # log.debug("Initializing LearningSwitch, transparent=%s",
     #          str(self.transparent))<F2>
 
   def _handle_PacketIn (self, event):
@@ -180,10 +184,10 @@ class LearningSwitch (object):
             if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
 
                 if (packet.payload.protodst in arpNat):
-                    arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, event.port])
+                    arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, dpid, inport])
 
                 else:
-                    arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, event.port]]
+                    arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, dpid, inport]]
 
                 r = arp()
                 r.hwtype = r.HW_TYPE_ETHERNET
@@ -207,34 +211,43 @@ class LearningSwitch (object):
                 flood()
         
         elif match.nw_proto == arp.REPLY:   
-            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):		
-                r = arp()
-                r.hwtype = r.HW_TYPE_ETHERNET
-                r.prototype = r.PROTO_TYPE_IP
-                r.hwlen = 6
-                r.protolen = r.protolen
-                r.opcode = r.REPLY
-                r.hwdst, r.protodst, outport = arpNat[packet.payload.protosrc].pop()
-                r.hwsrc = packet.payload.hwsrc
-                r.protosrc = packet.payload.protosrc
-                e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
-                e.set_payload(r)
-                log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-                
-                msg = of.ofp_packet_out()
-                msg.data = e.pack()
-                msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
-                msg.in_port = inport
-                event.connection.send(msg)
-            else:
-                flood()
-                #msg = of.ofp_packet_out()
-                #msg.match = of.ofp_match.from_packet(packet,event.port)
-                #msg.idle_timeout = 10
-                #msg.hard_timeout = 30
-                #msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
-                #msg.data = event.ofp
-                #self.connection.send(msg)
+            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
+                flag = False
+                count = 0
+                for e in arpNat[packet.payload.protosrc]:
+
+                    if e[2] == dpid:
+                        flag = True
+                        i = count
+                    count = count + 1
+                if flag:
+                    r = arp()
+                    r.hwtype = r.HW_TYPE_ETHERNET
+                    r.prototype = r.PROTO_TYPE_IP
+                    r.hwlen = 6
+                    r.protolen = r.protolen
+                    r.opcode = r.REPLY
+                    r.hwdst, r.protodst, outpid, outport = arpNat[packet.payload.protosrc].pop(i)
+                    r.hwsrc = packet.payload.hwsrc
+                    r.protosrc = packet.payload.protosrc
+                    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
+                    e.set_payload(r)
+                    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+
+                    msg = of.ofp_packet_out()
+                    msg.data = e.pack()
+                    msg.actions.append(of.ofp_action_output(port = outport))
+                    msg.in_port = inport
+                    event.connection.send(msg)
+                else:
+                    flood()
+                    #msg = of.ofp_packet_out()
+                    #msg.match = of.ofp_match.from_packet(packet,event.port)
+                    #msg.idle_timeout = 10
+                    #msg.hard_timeout = 30
+                    #msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
+                    #msg.data = event.ofp
+                    #self.connection.send(msg)
         return
     
     if packet.dst.is_multicast:
@@ -266,7 +279,7 @@ class l2_learning (object):
   """
   Waits for OpenFlow switches to connect and makes them learning switches.
   """
-  def __init__ (self, transparent, ignore = None):
+  def __init__(self, transparent, ignore = None):
     """
     Initialize
 
