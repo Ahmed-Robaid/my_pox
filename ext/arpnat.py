@@ -134,15 +134,6 @@ class ArpNat(object):
                 e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=ETHER_BROADCAST)
                 e.payload = r
 
-                tmpfm = of.ofp_flow_mod()
-                tmpfm.priority -= 0x1100
-                tmpfm.match.dl_type = ethernet.ARP_TYPE
-                tmpfm.match.nw_src = packet.payload.protosrc
-                tmpfm.match.dl_src = packet.payload.hwsrc
-                tmpfm.match.nw_proto = arp.REQUEST
-                # tmpfm.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
-                for switch in core.openflow._connections.values():
-                    switch.send(tmpfm)
                 msg = of.ofp_packet_out()
                 msg.data = e.pack()
                 msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
@@ -178,15 +169,6 @@ class ArpNat(object):
                     e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
                     e.set_payload(r)
                     log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-
-                    tmpfm = of.ofp_flow_mod(command=of.OFPFC_DELETE)
-                    tmpfm.priority -= 0x1100
-                    tmpfm.match.dl_type = ethernet.ARP_TYPE
-                    tmpfm.match.nw_src = r.protodst
-                    tmpfm.match.dl_src = r.hwdst
-                    tmpfm.match.nw_proto = arp.REQUEST
-                    for switch in core.openflow._connections.values():
-                        switch.send(tmpfm)
 
                     msg = of.ofp_packet_out()
                     msg.data = e.pack()
