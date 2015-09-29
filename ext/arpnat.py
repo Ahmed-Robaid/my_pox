@@ -19,15 +19,19 @@ from pox.lib.recoco import Timer
 import time
 
 log = core.getLogger()
+
 arpNat = {}
 _flood_delay = 0
 
+
 class ArpNat(object):
     def __init__(self):
-        #self._expire_timer = Timer(5, _handle_expiration, recurring=True)
+        # self._expire_timer = Timer(5, _handle_expiration, recurring=True)
+        # self.ip = IPAddr(input("Enter dummy IP Address: "))
+        # self.mac = EthAddr(input("Enter dummy MAC Address: "))
         self.ip = IPAddr("10.0.0.100")
         self.mac = EthAddr("00:11:22:33:44:55")
-        core.addListeners(self)
+        core.addListeners(self, priority=1)
         self.hold_down_expired = _flood_delay == 0
 
     def _handle_GoingUpEvent(self, event):
@@ -42,7 +46,6 @@ class ArpNat(object):
         fm1.match.dl_src = self.mac
         fm1.match.nw_proto = arp.REQUEST
         fm1.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-        fm1.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
         event.connection.send(fm1)
 
         fm2 = of.ofp_flow_mod()
@@ -53,7 +56,6 @@ class ArpNat(object):
         fm2.match.nw_proto = arp.REPLY
         fm2.actions.append(of.ofp_action_output(port=of.OFPP_CONTROLLER))
         event.connection.send(fm2)
-
 
         fm3 = of.ofp_flow_mod()
         fm3.priority -= 0x1000
@@ -78,30 +80,6 @@ class ArpNat(object):
             log.warning("%s: ignoring unparsed packet", dpid_to_str(dpid))
             return
 
-        def flood(message=None):
-            """ Floods the packet """
-            msg = of.ofp_packet_out()
-            if time.time() - event.connection.connect_time >= _flood_delay:
-                # Only flood if we've been connected for a little while...
-
-                if self.hold_down_expired is False:
-                    # Oh yes it is!
-                    self.hold_down_expired = True
-                    log.info("%s: Flood hold-down expired -- flooding",
-                             dpid_to_str(event.dpid))
-
-                if message is not None: log.debug(message)
-                # log.debug("%i: flood %s -> %s", event.dpid,packet.src,packet.dst)
-                # OFPP_FLOOD is optional; on some switches you may need to change
-                # this to OFPP_ALL.
-                msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-            else:
-                pass
-                # log.info("Holding down flood for %s", dpid_to_str(event.dpid))
-            msg.data = event.ofp
-            msg.in_port = event.port
-            event.connection.send(msg)
-
         def drop(duration=None):
             """
             Drops this packet and optionally installs a flow to continue
@@ -123,7 +101,8 @@ class ArpNat(object):
                 event.connection.send(msg)
 
         a = packet.find('arp')
-        if not a: return
+        if not a:
+            return
 
         log.debug("%s ARP %s %s => %s", dpid_to_str(dpid),
                   {arp.REQUEST: "request", arp.REPLY: "reply"}.get(a.opcode,
@@ -132,10 +111,12 @@ class ArpNat(object):
 
         if a.opcode == arp.REQUEST:
 
-            if (packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip):
+            if packet.payload.hwsrc != self.mac and packet.payload.protosrc != self.ip:
 
-                if (packet.payload.protodst in arpNat):
-                    arpNat[packet.payload.protodst].append([packet.payload.hwsrc, packet.payload.protosrc, dpid, inport])
+
+                if packet.payload.protodst in arpNat:
+                    arpNat[packet.payload.protodst].append(
+                        [packet.payload.hwsrc, packet.payload.protosrc, dpid, inport])
 
                 else:
                     arpNat[packet.payload.protodst] = [[packet.payload.hwsrc, packet.payload.protosrc, dpid, inport]]
@@ -154,28 +135,26 @@ class ArpNat(object):
                 e.payload = r
 
                 tmpfm = of.ofp_flow_mod()
-                tmpfm.priority -=0x1000
+                tmpfm.priority -= 0x1100
                 tmpfm.match.dl_type = ethernet.ARP_TYPE
                 tmpfm.match.nw_src = packet.payload.protosrc
                 tmpfm.match.dl_src = packet.payload.hwsrc
                 tmpfm.match.nw_proto = arp.REQUEST
                 # tmpfm.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
                 for switch in core.openflow._connections.values():
-                        switch.send(tmpfm)
-
+                    switch.send(tmpfm)
                 msg = of.ofp_packet_out()
                 msg.data = e.pack()
                 msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
                 # msg.in_port = inport
                 event.connection.send(msg)
-
-
-
+                return EventHalt
             else:
                 return
 
         elif a.opcode == arp.REPLY:
-            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
+            if (arpNat[
+                    packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
                 drop()
                 flag = False
                 count = 0
@@ -184,7 +163,7 @@ class ArpNat(object):
                     if e[2] == dpid:
                         flag = True
                         i = count
-                    count = count + 1
+                    count += 1
                 if flag:
 
                     r = arp()
@@ -201,7 +180,7 @@ class ArpNat(object):
                     log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
 
                     tmpfm = of.ofp_flow_mod(command=of.OFPFC_DELETE)
-                    tmpfm.priority -=0x1100
+                    tmpfm.priority -= 0x1100
                     tmpfm.match.dl_type = ethernet.ARP_TYPE
                     tmpfm.match.nw_src = r.protodst
                     tmpfm.match.dl_src = r.hwdst
@@ -214,6 +193,7 @@ class ArpNat(object):
                     msg.actions.append(of.ofp_action_output(port=outport))
                     msg.in_port = inport
                     event.connection.send(msg)
+                    return EventHalt
             else:
                 return
 
