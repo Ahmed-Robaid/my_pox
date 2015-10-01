@@ -61,7 +61,7 @@ while time.time() < t_end:
 	arp =(Ether(dst='ff:ff:ff:ff:ff:ff')/ARP(psrc=source, hwsrc=smac, pdst = destination))
     	sendp(arp)
 	#send(arp)
-    	sleep(0.001)
+    	sleep(0.005)
 
 
 '''
