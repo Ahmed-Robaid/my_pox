@@ -65,12 +65,12 @@ try:
             res = ((proctotal - pr_proctotal) / (cputotal - pr_cputotal) * 100)
             load = round(res, 1)
             print ('%s %s') %(count,load)
-     	    count = count+10
+     	    count = count+5
  	
 
         except ZeroDivisionError:
             pass
 
-        time.sleep(10)
+        time.sleep(5)
 except KeyboardInterrupt:
     sys.exit(0)
