@@ -1,3 +1,0 @@
-### awk '{ sum += $1; n++ } END { if (n > 0) print sum / n; }' ###
-l2 37.57
-l2_arpnat 43.36
