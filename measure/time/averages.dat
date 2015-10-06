@@ -1,20 +1,4 @@
 
-l2_arpnat_tree34
-
-samples = 250
-average = 44.4696
-min = 16.4
-stand dev = 6.66855
-max = 125
-
-l2_tree34
-
-samples = 250
-average = 38.8544
-min = 16.9
-stand dev = 6.23333
-max = 128
-
 l2_linear20
 
 samples = 250
@@ -31,5 +15,48 @@ average = 93.4124
 min = 42.0
 stand dev = 9.66501
 max = 280
+
+l2_linear40 
+samples = 200
+average = 164.31
+min = 125
+stand dev = 12.8183
+max = 238
+
+l2_arpnat_linear40
+samples = 200
+average = 175.595
+min = 124
+stand dev = 13.2512
+max = 240
+
+l2_linear60
+samples = 200
+average = 324.595
+min = 262
+stand dev = 18.0165
+max = 456
+
+l2_arpnat_linear60
+samples = 200
+average = 289.795
+min = 248
+stand dev = 17.0234
+max = 376
+
+l2_arpnat_linear80
+samples = 200
+average = 489.655
+min = 410
+stand dev = 22.1281
+max = 648
+
+l2_linear80
+samples = 200
+average = 523.965
+min = 457
+stand dev = 22.8903
+max = 738
+
 
 

@@ -25,3 +25,11 @@ max = 365
 
 
 l2_arpnat_linear20
+
+samples = 250
+average = 93.4124
+min = 42.0
+stand dev = 9.66501
+max = 280
+
+

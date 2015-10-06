@@ -162,17 +162,20 @@ class LearningSwitch (object):
               % (packet.src, packet.dst, dpid_to_str(event.dpid), port))
           drop(10)
           return
-        # 6
+
         log.debug("installing flow for %s.%i -> %s.%i" %
                   (packet.src, event.port, packet.dst, port))
         msg = of.ofp_flow_mod()
         msg.match = of.ofp_match.from_packet(packet, event.port)
-        msg.idle_timeout = 0
-        msg.hard_timeout = 0
+        msg.idle_timeout = 1.5
+        msg.hard_timeout = 1.5
         msg.actions.append(of.ofp_action_output(port = port))
         msg.data = event.ofp # 6a
         self.connection.send(msg)
-
+        # sleep(1)
+        # msg = of.ofp_flow_mod(command=of.OFPFC_DELETE)
+        # for connection in core.openflow.connections: # _connections.values() before betta
+        #     connection.send(msg)
 
 class l2_learning (object):
   """

@@ -143,19 +143,18 @@ class ArpNat(object):
                 return
 
         elif a.opcode == arp.REPLY:
-            if (arpNat[
-                    packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
+            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
                 drop()
                 flag = False
                 count = 0
-                for e in arpNat[packet.payload.protosrc]:
 
+                for e in arpNat[packet.payload.protosrc]:
                     if e[2] == dpid:
                         flag = True
                         i = count
                     count += 1
-                if flag:
 
+                if flag:
                     r = arp()
                     r.hwtype = r.HW_TYPE_ETHERNET
                     r.prototype = r.PROTO_TYPE_IP
