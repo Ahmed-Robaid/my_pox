@@ -33,11 +33,11 @@ class DictTTL:
 
     def add(self, key, value):
         if key in self.container:
-            if value != self.container[key]:
+            if  self.container[key] != value:
                 print "multiple replies with same IP address and different MAC addresses"
                 return False
             else:
-                print "multiple replies with same P address and same MAC address"
+                print "multiple replies with same IP address and same MAC address"
                 return True
 
         with self.lock:
@@ -52,10 +52,21 @@ class DictTTL:
     def expire_func(self, remove_item):
         with self.lock:
             val = self.container.pop(remove_item)
+            print "-- expired %s" % str(remove_item)
 
     def __contains__(self,val):
         with self.lock:
-            return val in self.container
+            if val in self.container:
+                return True
+            else:
+                return False
+
+    def __getitem__(self,val):
+        with self.lock:
+            if val in self.container:
+                return self.container[val]
+            else:
+                return False
 
 
 class ArpNat(object):
@@ -113,7 +124,6 @@ class ArpNat(object):
         if not packet.parsed:
             log.warning("%s: ignoring unparsed packet", dpid_to_str(dpid))
             return
-
         def drop(duration=None):
             """
             Drops this packet and optionally installs a flow to continue
@@ -177,8 +187,8 @@ class ArpNat(object):
                 return
 
         elif a.opcode == arp.REPLY:
-            if (arpNat[packet.payload.protosrc] and packet.payload.protodst == self.ip and packet.payload.hwdst == self.mac):
-                drop()
+            if (packet.payload.protosrc in arpNat) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
+
                 flag = False
                 count = 0
 
@@ -189,34 +199,42 @@ class ArpNat(object):
                     count += 1
 
                 if flag:
-                    if arpttl.add((packet.payload.protosrc, packet.payload.protodst), packet.payload.hwsrc):
 
-                        r = arp()
-                        r.hwtype = r.HW_TYPE_ETHERNET
-                        r.prototype = r.PROTO_TYPE_IP
-                        r.hwlen = 6
-                        r.protolen = r.protolen
-                        r.opcode = r.REPLY
-                        r.hwdst, r.protodst, outpid, outport = arpNat[packet.payload.protosrc].pop(i)
-                        r.hwsrc = packet.payload.hwsrc
-                        r.protosrc = packet.payload.protosrc
-                        e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
-                        e.set_payload(r)
-                        log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-
-                        msg = of.ofp_packet_out()
-                        msg.data = e.pack()
-                        msg.actions.append(of.ofp_action_output(port=outport))
-                        msg.in_port = inport
-                        event.connection.send(msg)
-                        return EventHalt
+                    r = arp()
+                    r.hwtype = r.HW_TYPE_ETHERNET
+                    r.prototype = r.PROTO_TYPE_IP
+                    r.hwlen = 6
+                    r.protolen = r.protolen
+                    r.opcode = r.REPLY
+                    r.hwdst, r.protodst, outpid, outport = arpNat[packet.payload.protosrc].pop(i)
+                    r.hwsrc = packet.payload.hwsrc
+                    r.protosrc = packet.payload.protosrc
+                    e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
+                    e.set_payload(r)
+                    log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+                    msg = of.ofp_packet_out()
+                    msg.data = e.pack()
+                    msg.actions.append(of.ofp_action_output(port=outport))
+                    msg.in_port = inport
+                    event.connection.send(msg)
+                    arpttl.add((packet.payload.protosrc, packet.payload.protodst),packet.payload.hwsrc)
+                    return EventHalt
             else:
-                return
 
+                if (packet.payload.protosrc, packet.payload.protodst) in arpttl:
+                    if arpttl[(packet.payload.protosrc, packet.payload.protodst)] == packet.payload.hwsrc:
+                        print "multiple replies, but OK"
+                        return
+                    else:
+                        print "multiple replies for the same IP with different mac addresses\nASDASDASD\nASDASDASD"
+                        return
+                else:
+                    print "Dropping gratuitous reply"
+                    drop()
 
 def launch():
     log.info("arpNat component running")
     core.registerNew(ArpNat)
 
 arpNat = {}
-arpttl = DictTTL(timeout = 3)
+arpttl = DictTTL(timeout = 5)
