@@ -76,6 +76,7 @@ class ArpNat(object):
         # self.mac = EthAddr(input("Enter dummy MAC Address: "))
         self.ip = IPAddr("10.0.0.100")
         self.mac = EthAddr("00:11:22:33:44:55")
+        self.safe = EthAddr("11:11:11:11:11:11")
         core.addListeners(self, priority=1)
         self.hold_down_expired = _flood_delay == 0
 
@@ -187,7 +188,7 @@ class ArpNat(object):
                 return
 
         elif a.opcode == arp.REPLY:
-            if (packet.payload.protosrc in arpNat) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
+            if (arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
 
                 flag = False
                 count = 0
@@ -217,20 +218,39 @@ class ArpNat(object):
                     msg.actions.append(of.ofp_action_output(port=outport))
                     msg.in_port = inport
                     event.connection.send(msg)
-                    arpttl.add((packet.payload.protosrc, packet.payload.protodst),packet.payload.hwsrc)
+                    arpttl.add((packet.payload.protosrc, packet.payload.protodst),[packet.payload.hwsrc,outport,outpid, r.protodst, r.hwdst])
                     return EventHalt
             else:
-
                 if (packet.payload.protosrc, packet.payload.protodst) in arpttl:
-                    if arpttl[(packet.payload.protosrc, packet.payload.protodst)] == packet.payload.hwsrc:
-                        print "multiple replies, but OK"
+                    if arpttl[(packet.payload.protosrc, packet.payload.protodst)][0] == packet.payload.hwsrc:
+                        #print "multiple replies, but OK"
                         return
                     else:
-                        print "multiple replies for the same IP with different mac addresses\nASDASDASD\nASDASDASD"
-                        return
+                        if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
+                            print "multiple replies for the same IP with different mac addresses"
+                            r = arp()
+                            r.hwtype = r.HW_TYPE_ETHERNET
+                            r.prototype = r.PROTO_TYPE_IP
+                            r.hwlen = 6
+                            r.protolen = r.protolen
+                            r.opcode = r.REPLY
+                            r.hwdst = arpttl[(packet.payload.protosrc, packet.payload.protodst)][4]
+                            r.protodst = arpttl[(packet.payload.protosrc, packet.payload.protodst)][3]
+                            outport = arpttl[(packet.payload.protosrc, packet.payload.protodst)][1]
+                            r.hwsrc = self.safe
+                            r.protosrc = packet.payload.protosrc
+                            e = ethernet(type=ethernet.ARP_TYPE, src=self.safe, dst=r.hwdst)
+                            e.set_payload(r)
+                            log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
+                            msg = of.ofp_packet_out()
+                            msg.data = e.pack()
+                            msg.actions.append(of.ofp_action_output(port=outport))
+                            msg.in_port = inport
+                            event.connection.send(msg)
+                            return EventHalt
                 else:
                     print "Dropping gratuitous reply"
-                    drop()
+                    return EventHalt
 
 def launch():
     log.info("arpNat component running")
