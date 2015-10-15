@@ -34,10 +34,10 @@ class DictTTL:
     def add(self, key, value):
         if key in self.container:
             if  self.container[key] != value:
-                print "multiple replies with same IP address and different MAC addresses"
+                #print "multiple replies with same IP address and different MAC addresses"
                 return False
             else:
-                print "multiple replies with same IP address and same MAC address"
+                #print "multiple replies with same IP address and same MAC address"
                 return True
 
         with self.lock:
@@ -52,7 +52,7 @@ class DictTTL:
     def expire_func(self, remove_item):
         with self.lock:
             val = self.container.pop(remove_item)
-            print "-- expired %s" % str(remove_item)
+            #print "-- expired %s" % str(remove_item)
 
     def __contains__(self,val):
         with self.lock:
@@ -227,7 +227,7 @@ class ArpNat(object):
                         return
                     else:
                         if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
-                            print "multiple replies for the same IP with different mac addresses"
+                            #print "multiple replies for the same IP with different mac addresses"
                             r = arp()
                             r.hwtype = r.HW_TYPE_ETHERNET
                             r.prototype = r.PROTO_TYPE_IP
@@ -249,7 +249,7 @@ class ArpNat(object):
                             event.connection.send(msg)
                             return EventHalt
                 else:
-                    print "Dropping gratuitous reply"
+                    #print "Dropping gratuitous reply"
                     return EventHalt
 
 def launch():
