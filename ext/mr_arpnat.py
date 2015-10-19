@@ -188,7 +188,7 @@ class ArpNat(object):
                 return
 
         elif a.opcode == arp.REPLY:
-            if (arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
+            if (packet.payload.protosrc in arpNat and arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
 
                 flag = False
                 count = 0
@@ -223,11 +223,11 @@ class ArpNat(object):
             else:
                 if (packet.payload.protosrc, packet.payload.protodst) in arpttl:
                     if arpttl[(packet.payload.protosrc, packet.payload.protodst)][0] == packet.payload.hwsrc:
-                        #print "multiple replies, but OK"
-                        return
+                        print "multiple replies, but OK"
+                        return EventHalt
                     else:
                         if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
-                            #print "multiple replies for the same IP with different mac addresses"
+                            print "multiple replies for the same IP with different mac addresses"
                             r = arp()
                             r.hwtype = r.HW_TYPE_ETHERNET
                             r.prototype = r.PROTO_TYPE_IP
@@ -249,7 +249,7 @@ class ArpNat(object):
                             event.connection.send(msg)
                             return EventHalt
                 else:
-                    #print "Dropping gratuitous reply"
+                    print "Dropping gratuitous reply"
                     return EventHalt
 
 def launch():
