@@ -67,7 +67,7 @@ timeoutSec = dict(
   arpSilent=60*20, # This is for uiet entries not known to answer ARP
   arpReply=4,      # Time to wait for an ARP reply before retrial
   timerInterval=5, # Seconds between timer routine activations
-  entryMove=60     # Minimum expected time to move a physical entry
+  entryMove=2     # Minimum expected time to move a physical entry
   )
 
 # Address to send ARP pings from.
@@ -324,6 +324,14 @@ class host_tracker (EventMixin):
 
     m.actions.append(of.ofp_action_output(port=of.OFPP_CONTROLLER))
     event.connection.send(m)
+
+  # def _handle_arpPacket(self, event):
+  #   connection = event.connection
+  #   packet = event.parsed
+  #   inport = event.port
+
+
+
 
   def _handle_openflow_PacketIn (self, event):
     """

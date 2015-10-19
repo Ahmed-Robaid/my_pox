@@ -7,7 +7,7 @@ ARP poisoning in SDN networks
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
-
+import pox.openflow as oflow
 from pox.lib.packet.ethernet import ethernet, ETHER_BROADCAST
 from pox.lib.revent import *
 from pox.lib.packet.arp import arp
@@ -67,13 +67,28 @@ class DictTTL:
                 return self.container[val]
             else:
                 return False
+# class arpPacketIn(Event.PacketIn):
+#     @property
+#     def dpid(self):
+#         return self.connection.dpid
+#
+#     def __init__(self, con, arpp, reply_from, eat_packet, port):
+#         super(arpPacketIn, self).__init()
+#         self.connection = con
+#         self.request = arpp
+#         self.reply_from = reply_from
+#         self.eat_packet = eat_packet
+#         self.port = port
+#
+#         self.ip = arpp.protosrc
+#         self.reply = None
+class ArpNat(EventMixin):
 
-
-class ArpNat(object):
     def __init__(self):
         # self._expire_timer = Timer(5, _handle_expiration, recurring=True)
         # self.ip = IPAddr(input("Enter dummy IP Address: "))
         # self.mac = EthAddr(input("Enter dummy MAC Address: "))
+        self._eventMixin_events = set([oflow.PacketIn])
         self.ip = IPAddr("10.0.0.100")
         self.mac = EthAddr("00:11:22:33:44:55")
         self.safe = EthAddr("11:11:11:11:11:11")
@@ -119,9 +134,10 @@ class ArpNat(object):
 
     def _handle_PacketIn(self, event):
         dpid = event.dpid
+        packet_in = event.ofp
         inport = event.port
         packet = event.parsed
-
+        print "new packet in\n"
         if not packet.parsed:
             log.warning("%s: ignoring unparsed packet", dpid_to_str(dpid))
             return
@@ -188,7 +204,7 @@ class ArpNat(object):
                 return
 
         elif a.opcode == arp.REPLY:
-            if (arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
+            if (packet.payload.protosrc in arpNat and arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
 
                 flag = False
                 count = 0
@@ -223,11 +239,11 @@ class ArpNat(object):
             else:
                 if (packet.payload.protosrc, packet.payload.protodst) in arpttl:
                     if arpttl[(packet.payload.protosrc, packet.payload.protodst)][0] == packet.payload.hwsrc:
-                        #print "multiple replies, but OK"
-                        return
+                        print "multiple replies, but OK"
+                        return EventHalt
                     else:
                         if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
-                            #print "multiple replies for the same IP with different mac addresses"
+                            print "multiple replies for the same IP with different mac addresses"
                             r = arp()
                             r.hwtype = r.HW_TYPE_ETHERNET
                             r.prototype = r.PROTO_TYPE_IP
@@ -247,9 +263,12 @@ class ArpNat(object):
                             msg.actions.append(of.ofp_action_output(port=outport))
                             msg.in_port = inport
                             event.connection.send(msg)
+                            ev = oflow.PacketIn( event.connection, event.ofp)
+                            self.raiseEvent(ev)
+                            print "asdasdasd\n"
                             return EventHalt
                 else:
-                    #print "Dropping gratuitous reply"
+                    print "Dropping gratuitous reply"
                     return EventHalt
 
 def launch():
