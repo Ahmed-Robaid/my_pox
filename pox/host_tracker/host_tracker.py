@@ -332,6 +332,42 @@ class host_tracker (EventMixin):
 
 
 
+  # def _handle_openflow_PacketOut (self, event):
+  #   dpid = event.connection.dpid
+  #   inport = event.port
+  #   packet = event.parsed
+  #
+  #   if not packet.parsed:
+  #     log.warning("%i %i ignoring unparsed packet", dpid, inport)
+  #     return
+  #   if packet.type == ethernet.ARP_TYPE:
+  #     if packet.payload.opcode == arp.REPLY:
+  #       log.debug("PacketIn: %i %i ETH %s => %s", dpid, inport, str(packet.src), str(packet.dst))
+  #       macEntry = self.getMacEntry(packet.src)
+  #       if macEntry is None:
+  #         macEntry = MacEntry(dpid, inport, packet.src)
+  #         self.entryByMAC[packet.src] = macEntry
+  #         log.info("Learned %s", str(macEntry))
+  #         self.raiseEventNoErrors(HostEvent, macEntry, join=True)
+  #     elif macEntry != (dpid, inport, packet.src):
+  #       if time.time() - macEntry.lastTimeSeen < timeoutSec['entryMove']:
+  #         log.warning("Possible duplicate: %s at time %i, now (%i %i), time %i", str(macEntry), macEntry.lastTimeSeen, dpid, inport, time.time())
+  #       e = HostEvent(macEntry, move=True, new_dpid = dpid, new_port = inport)
+  #       self.raiseEventNoErrors(e)
+  #       macEntry.dpid = e._new_dpid
+  #       macEntry.inport = e._new_port
+  #     macEntry.refresh()
+  #     (pckt_srcip, hasARP) = self.getSrcIPandARP(packet.next)
+  #     if pckt_srcip is not None:
+  #       self.updateIPInfo(pckt_srcip,macEntry,hasARP)
+  #
+  #     if self.eat_packets and packet.dst == self.ping_src_mac:
+  #       return EventHalt
+  #     return
+  #
+
+
+
 
   def _handle_openflow_PacketIn (self, event):
     """
