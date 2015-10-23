@@ -67,21 +67,22 @@ class DictTTL:
                 return self.container[val]
             else:
                 return False
-# class arpPacketIn(Event.PacketIn):
-#     @property
-#     def dpid(self):
-#         return self.connection.dpid
-#
-#     def __init__(self, con, arpp, reply_from, eat_packet, port):
-#         super(arpPacketIn, self).__init()
-#         self.connection = con
-#         self.request = arpp
-#         self.reply_from = reply_from
-#         self.eat_packet = eat_packet
-#         self.port = port
-#
-#         self.ip = arpp.protosrc
-#         self.reply = None
+
+
+
+class arpPacketIn(Event):
+    @property
+    def dpid(self):
+        return self.connection.dpid
+
+    def __init__(self, con, arpp, reply_from, port):
+        super(arpPacketIn, self).__init()
+        self.connection = con
+        self.packet = arpp
+        self.ip = arpp.protosrc
+        self.reply = None
+
+
 class ArpNat(EventMixin):
 
     def __init__(self):
@@ -137,7 +138,7 @@ class ArpNat(EventMixin):
         packet_in = event.ofp
         inport = event.port
         packet = event.parsed
-        print "new packet in\n"
+
         if not packet.parsed:
             log.warning("%s: ignoring unparsed packet", dpid_to_str(dpid))
             return
@@ -263,9 +264,9 @@ class ArpNat(EventMixin):
                             msg.actions.append(of.ofp_action_output(port=outport))
                             msg.in_port = inport
                             event.connection.send(msg)
-                            ev = oflow.PacketIn( event.connection, event.ofp)
-                            self.raiseEvent(ev)
-                            print "asdasdasd\n"
+                            # ev = oflow.PacketIn( event.connection, event.ofp)
+                            # self.raiseEvent(ev)
+
                             return EventHalt
                 else:
                     print "Dropping gratuitous reply"
@@ -274,6 +275,6 @@ class ArpNat(EventMixin):
 def launch():
     log.info("arpNat component running")
     core.registerNew(ArpNat)
-
+timeout_ttl = int(input("Select the timeout of the dictTTL: "))
 arpNat = {}
-arpttl = DictTTL(timeout = 5)
+arpttl = DictTTL(timeout = timeout_ttl)
