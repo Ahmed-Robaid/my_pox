@@ -1,0 +1,43 @@
+17:38:59 ubuntu@sdnhubvm:2:~/Downloads $ tshark -r trunk0-arp.pcap -T fields -e arp.src.proto_ipv4 > res.dat
+
+17:39:18 ubuntu@sdnhubvm:2:~/Downloads $ cat res.dat| sort | uniq | wc -l
+4199
+NUMBER OF IP ADDRESSES
+
+17:47:23 ubuntu@sdnhubvm:2:~/Downloads $ tshark -r trunk0-arp.pcap -T fields -e arp.src.proto_ipv4 -e arp.opcode | awk '$2 == "1" {print $1,"\011", $2}' | wc -l
+442740
+NUMBER OF ARP REQUESTS
+
+17:47:49 ubuntu@sdnhubvm:2:~/Downloads $ tshark -r trunk0-arp.pcap | tail -1
+674174 7567.317923 Dell_6c:2b:7d -> Broadcast    ARP 64 Who has 10.32.99.254?  Tell 10.32.98.248
+7567 seconds 
+TOTAL TIME OF THE CAPTURE
+
+18:03:01 ubuntu@sdnhubvm:2:~/Downloads $ python script.py | sort -rn | uniq | head -1000 > packets_per_ip.dat
+FIND THE 1000 IPS THAT SEND MOST ARP REQUESTS
+
+18:04:10 ubuntu@sdnhubvm:2:~/Downloads $ cat packets_per_ip.dat | awk '{ sum+=$1} END {print sum}'
+314730
+NUMBER OF ARP PACKETS SENT BY THE 1000 IPS THAT SEND MOST TRAFFIC (~75%). 25% OF THE IPS SENDS 75% OF THE TRAFFIC
+
+
+
+
+
+
+
+
+-------SCRIPT.PY--------
+ f = open('res.dat','r')
+ dict = {}
+ for line in f.readlines():
+     if line in dict:
+         dict[line] = dict[line]+1
+     else:
+         dict[line] = 1
+ 
+ 
+ for x in dict:
+     print str(dict[x])+" "+str(x)
+                                                                                                                                                                                                                                                                           
+                                  

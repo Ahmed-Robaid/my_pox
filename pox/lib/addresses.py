@@ -1,4 +1,4 @@
-# Copyright 2011,2012,2013,2014 James McCauley
+# Copyright 2011,2012,2013 James McCauley
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,59 +26,60 @@ if 'long' not in sys.modules['__builtin__'].__dict__:
   long = int
 
 
+"""
+# Unfinished oui name stuff formerly from packet library.
 
-_eth_oui_to_name = {} # OUI (3 bytes) -> name
+    oui = int(a[0]) << 16 | int(a[1]) << 8 | int(a[2])
+
+    # check if globally unique
+    if resolve_name and not (a[0] & 0x2):
+        if _ethoui2name.has_key(oui):
+            return "(%s):%02x:%02x:%02x" %( _ethoui2name[oui], a[3],a[4],a[5])
+"""
+_eth_oui_to_name = {}
 
 def _load_oui_names ():
-  """
-  Load OUI names from textfile
-
-  Assumes the textfile is adjacent to this source file.
-  """
-  import inspect
-  import os.path
-  filename = os.path.join(os.path.dirname(inspect.stack()[0][1]), 'oui.txt')
-  f = None
-  try:
-    f = open(filename)
-    for line in f.readlines():
-      if len(line) < 1:
-        continue
-      if line[0].isspace():
-        continue
-      split = line.split(' ')
-      if not '-' in split[0]:
-        continue
-      # grab 3-byte OUI
-      oui  = b''.join(chr(int(x,16)) for x in split[0].split('-'))
-      # strip off (hex) identifer and keep rest of name
-      end = ' '.join(split[1:]).strip()
-      end = end.split('\t')
-      end.remove('(hex)')
-      oui_name = ' '.join(end)
-      _eth_oui_to_name[oui] = oui_name.strip()
-  except:
-    raise
-    import logging
-    logging.getLogger().warn("Could not load OUI list")
-  if f: f.close()
+    import inspect
+    import os.path
+    filename = os.path.join(os.path.dirname(inspect.stack()[0][1]), 'oui.txt')
+    f = None
+    try:
+        f = open(filename)
+        for line in f.readlines():
+            if len(line) < 1:
+                continue
+            if line[0].isspace():
+                continue
+            split = line.split(' ')
+            if not '-' in split[0]:
+                continue
+            # grab 3-byte OUI
+            oui_str  = split[0].replace('-','')
+            # strip off (hex) identifer and keep rest of name
+            end = ' '.join(split[1:]).strip()
+            end = end.split('\t')
+            end.remove('(hex)')
+            oui_name = ' '.join(end)
+            # convert oui to int
+            oui = int(oui_str, 16)
+            _eth_oui_to_name[oui] = oui_name.strip()
+    except:
+        import logging
+        logging.getLogger().warn("Could not load OUI list")
+    if f: f.close()
 _load_oui_names()
-
 
 
 class EthAddr (object):
   """
   An Ethernet (MAC) address type.
-
-  Internal storage is six raw bytes.
   """
   def __init__ (self, addr):
     """
-    Constructor
-
     Understands Ethernet address is various forms.  Hex strings, raw byte
     strings, etc.
     """
+    # Always stores as a 6 character string
     if isinstance(addr, bytes) or isinstance(addr, basestring):
       if len(addr) == 6:
         # raw
@@ -106,11 +107,8 @@ class EthAddr (object):
       self._value = addr
     elif isinstance(addr, EthAddr):
       self._value = addr.toRaw()
-    elif isinstance(addr, (list,tuple,bytearray)):
-      self._value = b''.join( (chr(x) for x in addr) )
-    elif (hasattr(addr, '__len__') and len(addr) == 6
+    elif type(addr) == list or (hasattr(addr, '__len__') and len(addr) == 6
           and hasattr(addr, '__iter__')):
-      # Pretty much same as above case, but for sequences we don't know.
       self._value = b''.join( (chr(x) for x in addr) )
     elif addr is None:
       self._value = b'\x00' * 6
@@ -178,9 +176,6 @@ class EthAddr (object):
     return self._value
 
   def toTuple (self):
-    return self.to_tuple()
-
-  def to_tuple (self):
     """
     Returns a 6-entry long tuple where each entry is the numeric value
     of the corresponding byte of the address.
@@ -188,30 +183,19 @@ class EthAddr (object):
     return tuple((ord(x) for x in self._value))
 
   def toStr (self, separator = ':', resolveNames  = False):
-    return self.to_str(separator, resolveNames)
-
-  def to_str (self, separator = ':', resolve_names  = False):
     """
-    Returns string representation of address
-
-    Usually this is six two-digit hex numbers separated by colons.
-    If resolve_names is True, it the first three bytes may be replaced by a
-    string corresponding to the OUI.
+    Returns the address as string consisting of 12 hex chars separated
+    by separator.
+    If resolveNames is True, it may return company names based on
+    the OUI. (Currently unimplemented)
     """
-    if resolve_names and self.is_global:
-      # Don't even bother for local (though it should never match and OUI!)
-      name = _eth_oui_to_name.get(self._value[:3])
-      if name:
-        rest = separator.join('%02x' % (ord(x),) for x in self._value[3:])
-        return name + separator + rest
-
+    #TODO: show OUI info from packet lib ?
     return separator.join(('%02x' % (ord(x),) for x in self._value))
 
   def __str__ (self):
     return self.toStr()
 
   def __cmp__ (self, other):
-    #TODO: Revisit this and other __cmp__ in Python 3.4
     try:
       if type(other) == EthAddr:
         other = other._value
@@ -219,15 +203,21 @@ class EthAddr (object):
         pass
       else:
         other = EthAddr(other)._value
-      return cmp(self._value, other)
+      if self._value == other:
+        return 0
+      if self._value < other:
+        return -1
+      if self._value > other:
+        return -1
+      raise RuntimeError("Objects can not be compared?")
     except:
-      return -cmp(other, self)
+      return -other.__cmp__(self)
 
   def __hash__ (self):
     return self._value.__hash__()
 
   def __repr__ (self):
-    return type(self).__name__ + "('" + self.to_str() + "')"
+    return self.__class__.__name__ + "('" + self.toStr() + "')"
 
   def __len__ (self):
     return 6
@@ -238,12 +228,9 @@ class EthAddr (object):
     object.__setattr__(self, a, v)
 
 
-
 class IPAddr (object):
   """
   Represents an IPv4 address.
-
-  Internal storage is a signed int in network byte order.
   """
   def __init__ (self, addr, networkOrder = False):
     """
@@ -251,13 +238,11 @@ class IPAddr (object):
 
     If addr is an int/long, then it is assumed to be in host byte order
     unless networkOrder = True
-
-    We only handle dotted-quad textual representations.  That is, three dots
-    and four numbers.  Oddball representations ("10.1") maybe not so much.
+    Stored in network byte order as a signed int
     """
 
     # Always stores as a signed network-order int
-    if isinstance(addr, (basestring, bytes, bytearray)):
+    if isinstance(addr, basestring) or isinstance(addr, bytes):
       if len(addr) != 4:
         # dotted quad
         self._value = struct.unpack('i', socket.inet_aton(addr))[0]
@@ -376,29 +361,16 @@ class IPAddr (object):
     object.__setattr__(self, a, v)
 
 
-IP_ANY       = IPAddr("0.0.0.0")
-IP_BROADCAST = IPAddr("255.255.255.255")
-
-
-
 class IPAddr6 (object):
   """
   Represents an IPv6 address.
-
-  Internally stored as 16 raw bytes.
   """
   @classmethod
   def from_raw (cls, raw):
-    """
-    Factory that creates an IPAddr6 from six raw bytes
-    """
     return cls(raw, raw=True)
 
   @classmethod
   def from_num (cls, num):
-    """
-    Factory that creates an IPAddr6 from a large integer
-    """
     o = b''
     for i in xrange(16):
       o = chr(num & 0xff) + o
@@ -406,38 +378,17 @@ class IPAddr6 (object):
     return cls.from_raw(o)
 
   def __init__ (self, addr = None, raw = False, network_order = False):
-    """
-    Construct IPv6 address
-
-    We accept the following as inputs:
-    Textual IPv6 representations as a str or unicode (including mixed notation
-      with an IPv4-like component)
-    Raw IPv6 addresses (128 bits worth of bytearray or, if raw=True, bytes)
-    IPAddr (converted to IPv4-mapped IPv6 addresses)
-    IPAddr6 (just copied)
-    None (creates an "undefined" IPv6 address)
-    """
-    # When we move to Python 3, we can use bytes to infer raw.  For now, we
-    # have the 'raw' argument, which we'll take as either a boolean indicating
-    # that addr is raw, or we'll take it as the raw address itself.
+    # When we move to Python 3, we can use bytes to infer raw.
     if addr is None and isinstance(raw, (bytes,bytearray)):
-      # Allow passing in raw value using either addr=address + raw=True or
-      # addr=None + raw=address
       addr = raw
       raw = True
-
     if addr is None:
-      # Should we even allow this?  It's a weird case.
-      self._value = self.UNDEFINED._value
-    elif isinstance(addr, unicode) or (isinstance(addr, bytes) and not raw):
-      # A textual IPv6 representation
+      return self.UNDEFINED
+    if isinstance(addr, unicode) or (isinstance(addr, bytes) and not raw):
       ip4part = None
       if '.' in addr:
-        # It contains a dot, so it is in "mixed notation"
         addr,ip4part = addr.rsplit(':',1)
         if '.' in addr:
-          # We don't implement this, which is probably fine because they are
-          # deprecated.
           raise RuntimeError('IPv4-compatible representation unimplemented')
         if ':' in ip4part:
           raise RuntimeError('Bad address format')
@@ -449,8 +400,6 @@ class IPAddr6 (object):
       if len(segs) < 3 or len(segs) > 8:
         raise RuntimeError("Bad address format " + str(addr))
 
-      # Parse the two "sides" of the address (left and right of the optional
-      # dropped section)
       p = ([],[])
       side = 0
       for i,s in enumerate(segs):
@@ -462,36 +411,27 @@ class IPAddr6 (object):
           continue
         s = int(s,16)
         if s < 0 or s > 0xffff:
-          # Each chunk must be at most 16 bits!
           raise RuntimeError("Bad address format " + str(addr))
         p[side].append(s)
 
-      # Add the zeroes (if any) between the sides
       o = p[0] + ([0] * (8-len(p[0])-len(p[1]))) + p[1]
 
-      # Pack into raw format
       v = b''
       for b in o:
         v += struct.pack('!H', b)
 
-      # Append IPv4 part which we chopped off earlier
       if ip4part is not None:
         v = v[:-4] + IPAddr(ip4part).toRaw()
 
       self._value = v
     elif isinstance(addr, type(self)):
-      # Copy constructor
       self._value = addr._value
     elif isinstance(addr, IPAddr):
-      # IPv4-mapped
-      self._value = IPAddr6("::ffff:0:0:" + str(addr))._value
+      #FIXME: This is hacky.
+      self._value = IPAddr6("::ffff:0:0:" + str(addr))
     elif isinstance(addr, bytearray):
-      # Raw value
-      if len(addr) != 16: raise ValueError("Raw IPv6 addresses are 16 bytes")
       self._value = bytes(addr)
     elif isinstance(addr, bytes):
-      # Raw value
-      if len(addr) != 16: raise ValueError("Raw IPv6 addresses are 16 bytes")
       self._value = addr
     else:
       raise RuntimeError("Unexpected IP address format")
@@ -506,10 +446,7 @@ class IPAddr6 (object):
 
   def to_ipv4 (self, check_ipv4 = True):
     """
-    Convert to an IPAddr
-
-    This only makes sense if this address is ipv4 mapped/compatible.  By
-    default we check that this is the case.
+    Only makes sense if this address is ipv4 mapped/compatible
     """
     if check_ipv4:
       if not self.is_ipv4:
@@ -644,17 +581,7 @@ class IPAddr6 (object):
     return (self.num & ~((1 << (128-b))-1)) == n.num
 
   def to_str (self, zero_drop = True, section_drop = True, ipv4 = None):
-    """
-    Creates string representation of address
 
-    There are many ways to represent IPv6 addresses.  You get some options.
-    zero_drop and section_drop allow for creating minimized representations.
-    ipv4 controls whether we print a "mixed notation" representation.  By
-    default, we do this only for IPv4-mapped addresses.  You can stop this by
-    passing ipv4=False.  You can also force mixed notation representation
-    by passing ipv4=True; this probably only makes sense if .is_ipv4_compatible
-    (or .is_ipv4_mapped, of course).
-    """
     o = [ord(lo) | (ord(hi)<<8) for hi,lo in
          (self._value[i:i+2] for i in xrange(0,16,2))]
 
@@ -842,4 +769,29 @@ def infer_netmask (addr):
     # Class D (Multicast)
     return 32-0 # exact match
   # Must be a Class E (Experimental)
-  return 32-0
+    return 32-0
+
+
+IP_ANY = IPAddr("0.0.0.0")
+IP_BROADCAST = IPAddr("255.255.255.255")
+
+
+if __name__ == '__main__':
+  # A couple sanity checks
+  #TODO: move to tests
+  import code
+  a = IPAddr('255.0.0.1')
+  for v in [('255.0.0.1',True), (0xff000001, True), (0x010000ff, False)]:
+    print("== " + str(v) + " =======================")
+    a = IPAddr(v[0],v[1])
+    print(a._value,-16777215)
+    #print(hex(a._value),'ff000001')
+    print(str(a),'255.0.0.1')
+    print(hex(a.toUnsigned()),'010000ff')
+    print(hex(a.toUnsigned(networkOrder=True)),'ff000001')
+    print(a.toSigned(),16777471)
+    print(a.toSigned(networkOrder=True),-16777215)
+    print("----")
+    print([parse_cidr(x)[1]==24 for x in
+           ["192.168.101.0","192.168.102.0/24","1.1.168.103/255.255.255.0"]])
+  code.interact(local=locals())

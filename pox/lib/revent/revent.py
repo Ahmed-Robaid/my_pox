@@ -101,13 +101,6 @@ import operator
 import weakref
 
 
-class ReventError (RuntimeError):
-  """
-  An exception caused by revent
-  """
-  pass
-
-
 _nextEventID = 0
 def _generateEventID ():
   """
@@ -155,12 +148,9 @@ class Event (object):
   """
   Superclass for events
   """
-  # halt and source aren't really class variables, but this way they get
-  # created on each instance without having to call the base constructor.
-  halt = False
-  source = None
   def __init__ (self):
-    pass
+    self.halt = False
+    self.source = None
 
   def _invoke (self, handler, *args, **kw):
     return handler(self, *args, **kw)
@@ -239,9 +229,6 @@ class EventMixin (object):
     #      the specific handler that failed...
     try:
       return self.raiseEvent(event, *args, **kw)
-    except ReventError:
-      # That's bad...
-      raise
     except:
       if handleEventException is not None:
         import sys
@@ -280,8 +267,8 @@ class EventMixin (object):
     #print("raise",event,eventType)
     if (self._eventMixin_events is not True
         and eventType not in self._eventMixin_events):
-      raise ReventError("Event %s not defined on object of type %s"
-                        % (eventType, type(self)))
+      raise RuntimeError("Event %s not defined on object of type %s"
+                         % (eventType, type(self)))
 
     # Create a copy so that it can be modified freely during event
     # processing.  It might make sense to change this.
@@ -429,8 +416,8 @@ class EventMixin (object):
               fail = False
               break
       if fail:
-        raise ReventError("Event %s not defined on object of type %s"
-                          % (eventType, type(self)))
+        raise RuntimeError("Event %s not defined on object of type %s"
+                           % (eventType, type(self)))
     if eventType not in self._eventMixin_handlers:
       # if no handlers are already registered, initialize
       handlers = self._eventMixin_handlers[eventType] = []
@@ -573,6 +560,6 @@ class CallProxy (object):
     if o is not None:
       return self.method(o, *args, **kw)
     print("callProxy object is gone!")
-    raise ReventError("callProxy object is gone!")
+    raise RuntimeError("callProxy object is gone!")
   def __str__ (self):
     return "<CallProxy for " + self.name + ">"

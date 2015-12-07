@@ -324,6 +324,53 @@ class host_tracker (EventMixin):
 
     m.actions.append(of.ofp_action_output(port=of.OFPP_CONTROLLER))
     event.connection.send(m)
+  def _handle_openflow_PacketOut (self, event):
+    dpid = event.connection.dpid
+    inport = event.port
+    packet = event.parsed
+    if not packet.parsed:
+      log.warning("%i %i ignoring unparsed packet", dpid, inport)
+      return
+
+    if packet.type == ethernet.LLDP_TYPE: # Ignore LLDP packets
+      return
+
+    a = packet.find('arp')
+    if not a or a.opcode != arp.REPLY:
+      return
+
+    macEntry = self.getMacEntry(packet.src)
+    if macEntry is None:
+      # there is no known host by that MAC
+      # should we raise a NewHostFound event (at the end)?
+      macEntry = MacEntry(dpid,inport,packet.src)
+      self.entryByMAC[packet.src] = macEntry
+      log.info("Learned %s", str(macEntry))
+      self.raiseEventNoErrors(HostEvent, macEntry, join=True)
+    elif macEntry != (dpid, inport, packet.src):
+      # there is already an entry of host with that MAC, but host has moved
+      # should we raise a HostMoved event (at the end)?
+      log.info("Learned %s moved to %i %i", str(macEntry), dpid, inport)
+      # if there has not been long since heard from it...
+      if time.time() - macEntry.lastTimeSeen < timeoutSec['entryMove']:
+        log.warning("Possible duplicate: %s at time %i, now (%i %i), time %i",
+                    str(macEntry), macEntry.lastTimeSeen,
+                    dpid, inport, time.time())
+      # should we create a whole new entry, or keep the previous host info?
+      # for now, we keep it: IP info, answers pings, etc.
+      e = HostEvent(macEntry, move=True, new_dpid = dpid, new_port = inport)
+      self.raiseEventNoErrors(e)
+      macEntry.dpid = e._new_dpid
+      macEntry.inport = e._new_port
+
+    macEntry.refresh()
+
+    (pckt_srcip, hasARP) = self.getSrcIPandARP(packet.next)
+    if pckt_srcip is not None:
+      self.updateIPInfo(pckt_srcip,macEntry,hasARP)
+
+    if self.eat_packets and packet.dst == self.ping_src_mac:
+      return EventHalt
 
   def _handle_openflow_PacketIn (self, event):
     """

@@ -35,85 +35,38 @@ import json
 
 log = core.getLogger()
 
+class ServerWorker (TCPServerWorker, RecocoIOWorker):
+  pass
+
 clients = set()
 
-
-class GephiHTTPWorker (RecocoIOWorker):
-  # HTTP worker input states.  It'd be nice to reuse the web component, but
-  # it seemed a bit awkward with Gephi's (sort of unusual) streaming.
-  class HEADER: pass
-  class BODY: pass
-  class DEAD: pass
-
+class GephiWorker (RecocoIOWorker):
   def __init__ (self, *args, **kw):
-    super(GephiHTTPWorker, self).__init__(*args, **kw)
+    super(GephiWorker, self).__init__(*args, **kw)
     self._connecting = True
     self.data = b''
-    self._state = self.HEADER
 
   def _handle_close (self):
     log.info("Client disconnect")
-    super(GephiHTTPWorker, self)._handle_close()
+    super(GephiWorker, self)._handle_close()
     clients.discard(self)
 
   def _handle_connect (self):
     log.info("Client connect")
-    super(GephiHTTPWorker, self)._handle_connect()
+    super(GephiWorker, self)._handle_connect()
+    core.GephiTopo.send_full(self)
     clients.add(self)
 
   def _handle_rx (self):
-    self.data += self.read().replace("\r", "")
-    while True:
-      datalen = len(self.data)
+    self.data += self.read()
+    while '\n' in self.data:
+      # We don't currently do anything with this
+      msg,self.data = self.data.split('\n',1)
 
-      if self._state is self.HEADER:
-        if '\n\n' in self.data:
-          header,self.data = self.data.split('\n\n', 1)
-          self._process_header(header)
-      elif self._state is self.BODY:
-        pass
+      # This SHOULD be an HTTP request.
 
-      if datalen == len(self.data): break
-
-  def _process_header (self, request):
-    request = request.strip().split("\n")
-    if not request: return
-    req = request[0]
-    #kv = {}
-    #for r in request[1:]:
-    #  k,v = r.split(':', 1)
-    #  kv[k] = v
-
-    if 'POST' in req:
-      self._state = self.BODY
-      self.shutdown()
-      return
-
-    # Assume it's a GET /
-    self.send_full()
-
-  def send_full (self):
-    out = core.GephiTopo.get_full()
-    self.send_json(out)
-
-  def send_json (self, m):
-    # Build the body...
-    b = '\r\n'.join(json.dumps(part) for part in m)
-    b += '\r\n'
-
-    # Build the header...
-    h = []
-    h.append('HTTP/1.1 200 OK')
-    h.append('Content-Type: test/plain') # This is what Gephi claims
-    #h.append('Content-Length: ' + str(len(d)))
-    h.append('Server: POX/%s.%s.%s' % core.version)
-    h.append('Connection: close')
-    h = '\r\n'.join(h)
-
-    self.send(h + '\r\n\r\n' + b)
-
-  def send_msg (self, m):
-    self.send_json([m])
+      #print msg
+      pass
 
 
 def an (n, **kw):
@@ -155,9 +108,9 @@ class GephiTopo (object):
 
   def send (self, data):
     for c in clients:
-      c.send_msg(data)
+      c.send(json.dumps(data) + '\r\n')
 
-  def get_full (self):
+  def send_full (self, client):
     out = []
 
     out.append(clear())
@@ -171,7 +124,9 @@ class GephiTopo (object):
       if s in self.switches:
         out.append(ae(h,s))
 
-    return out
+    out = '\r\n'.join(json.dumps(o) for o in out)
+
+    client.send(out + '\r\n')
 
   def __handle_host_tracker_HostEvent (self, event):
     # Name is intentionally mangled to keep listen_to_dependencies away
@@ -229,18 +184,15 @@ class GephiTopo (object):
       self.send(de(s1,s2))
 
 
-loop = None
+def launch (port = 8282):
+  core.registerNew(GephiTopo)
 
-def launch (port = 8282, __INSTANCE__ = None):
-  if not core.hasComponent("GephiTopo"):
-    core.registerNew(GephiTopo)
-
+  # In theory, we're supposed to be running a web service, but instead
+  # we just spew Gephi graph streaming junk at everyone who connects. :)
   global loop
-  if not loop:
-    loop = RecocoIOLoop()
-    #loop.more_debugging = True
-    loop.start()
+  loop = RecocoIOLoop()
+  #loop.more_debugging = True
+  loop.start()
 
-  worker_type = GephiHTTPWorker
-  w = RecocoServerWorker(child_worker_type=worker_type, port = int(port))
+  w = ServerWorker(child_worker_type=GephiWorker, port = int(port))
   loop.register_worker(w)

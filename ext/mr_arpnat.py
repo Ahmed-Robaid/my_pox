@@ -76,7 +76,7 @@ class ArpNat(object):
         # self.mac = EthAddr(input("Enter dummy MAC Address: "))
         self.ip = IPAddr("10.0.0.100")
         self.mac = EthAddr("00:11:22:33:44:55")
-        self.safe = EthAddr("11:11:11:11:11:11")
+        self.safe = EthAddr("00:00:00:00:00:00")
         core.addListeners(self, priority=1)
         self.hold_down_expired = _flood_delay == 0
 
@@ -116,6 +116,8 @@ class ArpNat(object):
         fm4.match.nw_proto = arp.REPLY
         fm4.actions.append(of.ofp_action_output(port=of.OFPP_NONE))
         event.connection.send(fm4)
+
+
 
     def _handle_PacketIn(self, event):
         dpid = event.dpid
@@ -190,16 +192,17 @@ class ArpNat(object):
         elif a.opcode == arp.REPLY:
             if (packet.payload.protosrc in arpNat and arpNat[packet.payload.protosrc]) and (packet.payload.protodst == self.ip) and (packet.payload.hwdst == self.mac):
 
-                flag = False
-                count = 0
+#                 flag = False
+#                     count = 0
 
-                for e in arpNat[packet.payload.protosrc]:
-                    if e[2] == dpid:
-                        flag = True
-                        i = count
-                    count += 1
+#                 for e in arpNat[packet.payload.protosrc]:
+#                     if e[2] == dpid:
 
-                if flag:
+#                         flag = True
+#                         i = count
+#                     count += 1
+
+#                 if flag:
 
                     r = arp()
                     r.hwtype = r.HW_TYPE_ETHERNET
@@ -207,17 +210,20 @@ class ArpNat(object):
                     r.hwlen = 6
                     r.protolen = r.protolen
                     r.opcode = r.REPLY
-                    r.hwdst, r.protodst, outpid, outport = arpNat[packet.payload.protosrc].pop(i)
+#                     print arpNat[packet.payload.protosrc]
+                    r.hwdst, r.protodst, outpid, outport = arpNat[packet.payload.protosrc].pop()
                     r.hwsrc = packet.payload.hwsrc
                     r.protosrc = packet.payload.protosrc
                     e = ethernet(type=ethernet.ARP_TYPE, src=self.mac, dst=r.hwdst)
                     e.set_payload(r)
                     log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-                    msg = of.ofp_packet_out()
-                    msg.data = e.pack()
-                    msg.actions.append(of.ofp_action_output(port=outport))
-                    msg.in_port = inport
-                    event.connection.send(msg)
+                    msg = of.ofp_packet_out(data=e.pack(), action = of.ofp_action_output(port = outport))
+#                     msg.data = e.pack()
+#                     msg.actions.append(of.ofp_action_output(port=outport))
+#                     msg.in_port = inport
+                    core.openflow.sendToDPID(outpid,msg)
+#                     event.connection.send(msg)
+#                     print "outport: "+str(outport) +" dpid:"+ str(dpid)+" outpid:"+str(outpid)
                     arpttl.add((packet.payload.protosrc, packet.payload.protodst),[packet.payload.hwsrc,outport,outpid, r.protodst, r.hwdst])
                     return EventHalt
             else:
@@ -226,7 +232,7 @@ class ArpNat(object):
                         print "multiple replies, but OK"
                         return EventHalt
                     else:
-                        if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
+#                         if dpid == arpttl[(packet.payload.protosrc, packet.payload.protodst)][2]:
                             print "multiple replies for the same IP with different mac addresses"
                             r = arp()
                             r.hwtype = r.HW_TYPE_ETHERNET
@@ -242,11 +248,14 @@ class ArpNat(object):
                             e = ethernet(type=ethernet.ARP_TYPE, src=self.safe, dst=r.hwdst)
                             e.set_payload(r)
                             log.debug("ARPing for %s on behalf of %s" % (r.protodst, r.protosrc))
-                            msg = of.ofp_packet_out()
-                            msg.data = e.pack()
-                            msg.actions.append(of.ofp_action_output(port=outport))
-                            msg.in_port = inport
-                            event.connection.send(msg)
+                            msg = of.ofp_packet_out(data=e.pack(), action = of.ofp_action_output(port = outport))
+#                             msg = of.ofp_packet_out()
+#                             msg.data = e.pack()
+#                             msg.actions.append(of.ofp_action_output(port=outport))
+#                             msg.in_port = inport
+                            time.sleep(1)
+                            core.openflow.sendToDPID(arpttl[(packet.payload.protosrc, packet.payload.protodst)][2],msg)
+#                             event.connection.send(msg)
                             return EventHalt
                 else:
                     print "Dropping gratuitous reply"

@@ -22,6 +22,7 @@ from pox.lib.graph.graph import *
 
 class EntityEvent (Event):
   def __init__ (self, entity):
+    Event.__init__(self)
     self.entity = entity
 
 class EntityJoin (EntityEvent):
@@ -53,6 +54,7 @@ class Update (Event):
   Fired by Topology whenever anything has changed
   """
   def __init__ (self, event):
+    Event.__init__(self)
     self.event = event
 
 class Entity (Node):

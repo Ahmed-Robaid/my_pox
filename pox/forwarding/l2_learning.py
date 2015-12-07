@@ -22,7 +22,7 @@ exact-match rules for each flow.
 
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
-from pox.lib.util import dpid_to_str, str_to_dpid
+from pox.lib.util import dpid_to_str
 from pox.lib.util import str_to_bool
 import time
 
@@ -162,41 +162,32 @@ class LearningSwitch (object):
               % (packet.src, packet.dst, dpid_to_str(event.dpid), port))
           drop(10)
           return
-
+        # 6
         log.debug("installing flow for %s.%i -> %s.%i" %
                   (packet.src, event.port, packet.dst, port))
         msg = of.ofp_flow_mod()
         msg.match = of.ofp_match.from_packet(packet, event.port)
-        msg.idle_timeout = 10
-        msg.hard_timeout = 30
+        msg.idle_timeout = 1
+        msg.hard_timeout = 1
         msg.actions.append(of.ofp_action_output(port = port))
         msg.data = event.ofp # 6a
         self.connection.send(msg)
+
 
 class l2_learning (object):
   """
   Waits for OpenFlow switches to connect and makes them learning switches.
   """
-  def __init__ (self, transparent, ignore = None):
-    """
-    Initialize
-
-    See LearningSwitch for meaning of 'transparent'
-    'ignore' is an optional list/set of DPIDs to ignore
-    """
+  def __init__ (self, transparent):
     core.openflow.addListeners(self)
     self.transparent = transparent
-    self.ignore = set(ignore) if ignore else ()
 
   def _handle_ConnectionUp (self, event):
-    if event.dpid in self.ignore:
-      log.debug("Ignoring connection %s" % (event.connection,))
-      return
     log.debug("Connection %s" % (event.connection,))
     LearningSwitch(event.connection, self.transparent)
 
 
-def launch (transparent=False, hold_down=_flood_delay, ignore = None):
+def launch (transparent=False, hold_down=_flood_delay):
   """
   Starts an L2 learning switch.
   """
@@ -207,8 +198,4 @@ def launch (transparent=False, hold_down=_flood_delay, ignore = None):
   except:
     raise RuntimeError("Expected hold-down to be a number")
 
-  if ignore:
-    ignore = ignore.replace(',', ' ').split()
-    ignore = set(str_to_dpid(dpid) for dpid in ignore)
-
-  core.registerNew(l2_learning, str_to_bool(transparent), ignore)
+  core.registerNew(l2_learning, str_to_bool(transparent))

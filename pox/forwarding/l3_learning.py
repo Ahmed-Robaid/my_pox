@@ -86,14 +86,10 @@ def dpid_to_mac (dpid):
 
 
 class l3_switch (EventMixin):
-  def __init__ (self, fakeways = [], arp_for_unknowns = False, wide = False):
+  def __init__ (self, fakeways = [], arp_for_unknowns = False):
     # These are "fake gateways" -- we'll answer ARPs for them with MAC
     # of the switch they're connected to.
     self.fakeways = set(fakeways)
-
-    # If True, we create "wide" matches.  Otherwise, we create "narrow"
-    # (exact) matches.
-    self.wide = wide
 
     # If this is true and we see a packet for an unknown
     # host, we'll ARP for it.
@@ -114,7 +110,7 @@ class l3_switch (EventMixin):
     # This timer handles expiring stuff
     self._expire_timer = Timer(5, self._handle_expiration, recurring=True)
 
-    core.listen_to_dependencies(self)
+    self.listenTo(core)
 
   def _handle_expiration (self):
     # Called by a timer so that we can remove old items.
@@ -152,7 +148,11 @@ class l3_switch (EventMixin):
         po.actions.append(of.ofp_action_output(port = port))
         core.openflow.sendToDPID(dpid, po)
 
-  def _handle_openflow_PacketIn (self, event):
+  def _handle_GoingUpEvent (self, event):
+    self.listenTo(core.openflow)
+    log.debug("Up...")
+
+  def _handle_PacketIn (self, event):
     dpid = event.connection.dpid
     inport = event.port
     packet = event.parsed
@@ -182,14 +182,8 @@ class l3_switch (EventMixin):
       if packet.next.srcip in self.arpTable[dpid]:
         if self.arpTable[dpid][packet.next.srcip] != (inport, packet.src):
           log.info("%i %i RE-learned %s", dpid,inport,packet.next.srcip)
-          if self.wide:
-            # Make sure we don't have any entries with the old info...
-            msg = of.ofp_flow_mod(command=of.OFPFC_DELETE)
-            msg.match.nw_dst = packet.next.srcip
-            msg.match.dl_type = ethernet.IP_TYPE
-            event.connection.send(msg)
       else:
-        log.debug("%i %i learned %s", dpid,inport,packet.next.srcip)
+        log.debug("%i %i learned %s", dpid,inport,str(packet.next.srcip))
       self.arpTable[dpid][packet.next.srcip] = Entry(inport, packet.src)
 
       # Try to forward
@@ -200,8 +194,8 @@ class l3_switch (EventMixin):
         prt = self.arpTable[dpid][dstaddr].port
         mac = self.arpTable[dpid][dstaddr].mac
         if prt == inport:
-          log.warning("%i %i not sending packet for %s back out of the "
-                      "input port" % (dpid, inport, dstaddr))
+          log.warning("%i %i not sending packet for %s back out of the " +
+                      "input port" % (dpid, inport, str(dstaddr)))
         else:
           log.debug("%i %i installing flow for %s => %s out port %i"
                     % (dpid, inport, packet.next.srcip, dstaddr, prt))
@@ -209,17 +203,16 @@ class l3_switch (EventMixin):
           actions = []
           actions.append(of.ofp_action_dl_addr.set_dst(mac))
           actions.append(of.ofp_action_output(port = prt))
-          if self.wide:
-            match = of.ofp_match(dl_type = packet.type, nw_dst = dstaddr)
-          else:
-            match = of.ofp_match.from_packet(packet, inport)
+          match = of.ofp_match.from_packet(packet, inport)
+          match.dl_src = None # Wildcard source MAC
 
           msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
                                 idle_timeout=FLOW_IDLE_TIMEOUT,
                                 hard_timeout=of.OFP_FLOW_PERMANENT,
                                 buffer_id=event.ofp.buffer_id,
                                 actions=actions,
-                                match=match)
+                                match=of.ofp_match.from_packet(packet,
+                                                               inport))
           event.connection.send(msg.pack())
       elif self.arp_for_unknowns:
         # We don't know this destination.
@@ -262,7 +255,7 @@ class l3_switch (EventMixin):
                      dst=ETHER_BROADCAST)
         e.set_payload(r)
         log.debug("%i %i ARPing for %s on behalf of %s" % (dpid, inport,
-         r.protodst, r.protosrc))
+         str(r.protodst), str(r.protosrc)))
         msg = of.ofp_packet_out()
         msg.data = e.pack()
         msg.actions.append(of.ofp_action_output(port = of.OFPP_FLOOD))
@@ -273,7 +266,7 @@ class l3_switch (EventMixin):
       a = packet.next
       log.debug("%i %i ARP %s %s => %s", dpid, inport,
        {arp.REQUEST:"request",arp.REPLY:"reply"}.get(a.opcode,
-       'op:%i' % (a.opcode,)), a.protosrc, a.protodst)
+       'op:%i' % (a.opcode,)), str(a.protosrc), str(a.protodst))
 
       if a.prototype == arp.PROTO_TYPE_IP:
         if a.hwtype == arp.HW_TYPE_ETHERNET:
@@ -282,15 +275,9 @@ class l3_switch (EventMixin):
             # Learn or update port/MAC info
             if a.protosrc in self.arpTable[dpid]:
               if self.arpTable[dpid][a.protosrc] != (inport, packet.src):
-                log.info("%i %i RE-learned %s", dpid,inport,a.protosrc)
-                if self.wide:
-                  # Make sure we don't have any entries with the old info...
-                  msg = of.ofp_flow_mod(command=of.OFPFC_DELETE)
-                  msg.match.dl_type = ethernet.IP_TYPE
-                  msg.match.nw_dst = a.protosrc
-                  event.connection.send(msg)
+                log.info("%i %i RE-learned %s", dpid,inport,str(a.protosrc))
             else:
-              log.debug("%i %i learned %s", dpid,inport,a.protosrc)
+              log.debug("%i %i learned %s", dpid,inport,str(a.protosrc))
             self.arpTable[dpid][a.protosrc] = Entry(inport, packet.src)
 
             # Send any waiting packets...
@@ -319,7 +306,7 @@ class l3_switch (EventMixin):
                                dst=a.hwsrc)
                   e.set_payload(r)
                   log.debug("%i %i answering ARP for %s" % (dpid, inport,
-                   r.protosrc))
+                   str(r.protosrc)))
                   msg = of.ofp_packet_out()
                   msg.data = e.pack()
                   msg.actions.append(of.ofp_action_output(port =
@@ -331,19 +318,19 @@ class l3_switch (EventMixin):
       # Didn't know how to answer or otherwise handle this ARP, so just flood it
       log.debug("%i %i flooding ARP %s %s => %s" % (dpid, inport,
        {arp.REQUEST:"request",arp.REPLY:"reply"}.get(a.opcode,
-       'op:%i' % (a.opcode,)), a.protosrc, a.protodst))
+       'op:%i' % (a.opcode,)), str(a.protosrc), str(a.protodst)))
 
       msg = of.ofp_packet_out(in_port = inport, data = event.ofp,
           action = of.ofp_action_output(port = of.OFPP_FLOOD))
       event.connection.send(msg)
 
 
-def launch (fakeways="", arp_for_unknowns=None, wide=False):
+def launch (fakeways="", arp_for_unknowns=None):
   fakeways = fakeways.replace(","," ").split()
   fakeways = [IPAddr(x) for x in fakeways]
   if arp_for_unknowns is None:
     arp_for_unknowns = len(fakeways) > 0
   else:
     arp_for_unknowns = str_to_bool(arp_for_unknowns)
-  core.registerNew(l3_switch, fakeways, arp_for_unknowns, wide)
+  core.registerNew(l3_switch, fakeways, arp_for_unknowns)
 

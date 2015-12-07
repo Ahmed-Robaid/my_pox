@@ -15,7 +15,6 @@
 import pox.lib.recoco as recoco
 import pox.lib.revent as revent
 import threading
-from functools import partial
 
 class ReventWaiter (revent.EventMixin):
   def __init__ (self):
@@ -27,20 +26,11 @@ class ReventWaiter (revent.EventMixin):
     self._wakeLock = threading.Lock()
     self._wakeable = False
 
-  def registerForEventByName (self, source, eventName,
-                              once=False, weak=False, priority=None):
-    return source.addListenerByName(eventName,
-                                    partial(self._eventHandler, source),
-                                    once=once, weak=weak, priority=priority)
+  def registerForEvent (self, eventType, once=False, weak=False, priority=None):
+    return self.addListener(eventType, self._eventHandler, once, weak, priority)
 
-  def registerForEvent (self, source, eventType,
-                        once=False, weak=False, priority=None):
-    return source.addListener(eventType,
-                              partial(self._eventHandler, source),
-                              once=once, weak=weak, priority=priority)
-
-  def _eventHandler (self, src, *args, **kw):
-    self._events.append((src, args, kw))
+  def _eventHandler (self, *args, **kw):
+    self._events.append((args, kw))
     self._check()
 
   def _check (self):
@@ -65,38 +55,13 @@ class ReventWaiter (revent.EventMixin):
     except:
       return None
 
-  def getEvents (self):
-    r = []
-    while True:
-      try:
-        r.append(self._events.popleft())
-      except:
-        break
-    return r
-
-  def waitAll (self):
-    def cb (task):
-      return self.getEvents()
-    return WaitOnEvents(self, rf=cb)
-
-  def waitOne (self):
-    def cb (task):
-      return self.getEvent()
-    return WaitOnEvents(self, rf=cb)
-
-
-
 class WaitOnEvents (recoco.BlockingOperation):
-  def __init__ (self, eventWaiter, rf=None):
+  def __init__ (self, eventWaiter):
     self._waiter = eventWaiter
-    self._rf = rf
-
-  def _default_rf (self):
-    return self._waiter
 
   def execute (self, task, scheduler):
     #Next two should go into reset()?
-    task.rf = self._rf if self._rf else self._default_rf
+    task.rv = self._waiter
     self._waiter._task = task
     self._waiter._scheduler = scheduler
     self._waiter._reset()

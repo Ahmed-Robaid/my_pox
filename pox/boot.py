@@ -53,9 +53,10 @@ import types
 import threading
 
 import pox.core
-core = None
+core = pox.core.initialize()
 
 import pox.openflow
+import pox.openflow.of_01
 from pox.lib.util import str_to_bool
 
 # Function to run on main thread
@@ -173,15 +174,6 @@ def _do_launch (argv):
       curargs[arg[0]] = arg[1]
 
   _options.process_options(pox_options)
-  global core
-  if pox.core.core is not None:
-    core = pox.core.core
-    core.getLogger('boot').debug('Using existing POX core')
-  else:
-    core = pox.core.initialize(_options.threaded_selecthub,
-                               _options.epoll_selecthub,
-                               _options.handle_signals)
-
   _pre_startup()
   modules = _do_imports(n.split(':')[0] for n in component_order)
   if modules is False:
@@ -216,11 +208,11 @@ def _do_launch (argv):
               pass
 
       multi = False
-      if f.__code__.co_argcount > 0:
+      if f.func_code.co_argcount > 0:
         #FIXME: This code doesn't look quite right to me and may be broken
         #       in some cases.  We should refactor to use inspect anyway,
         #       which should hopefully just fix it.
-        if (f.__code__.co_varnames[f.__code__.co_argcount-1]
+        if (f.func_code.co_varnames[f.func_code.co_argcount-1]
             == '__INSTANCE__'):
           # It's a multi-instance-aware component.
 
@@ -379,9 +371,6 @@ class POXOptions (Options):
     self.verbose = False
     self.enable_openflow = True
     self.log_config = None
-    self.threaded_selecthub = True
-    self.epoll_selecthub = False
-    self.handle_signals = True
 
   def _set_h (self, given_name, name, value):
     self._set_help(given_name, name, value)
@@ -392,17 +381,8 @@ class POXOptions (Options):
     sys.exit(0)
 
   def _set_version (self, given_name, name, value):
-    global core
-    if core is None:
-      core = pox.core.initialize()
     print(core._get_python_version())
     sys.exit(0)
-
-  def _set_unthreaded_sh (self, given_name, name, value):
-    self.threaded_selecthub = False
-
-  def _set_epoll_sh (self, given_name, name, value):
-    self.epoll_selecthub = str_to_bool(value)
 
   def _set_no_openflow (self, given_name, name, value):
     self.enable_openflow = not str_to_bool(value)
@@ -444,19 +424,12 @@ def _pre_startup ():
     logging.getLogger().setLevel(logging.DEBUG)
 
   if _options.enable_openflow:
-    pox.openflow._launch() # Default OpenFlow launch
+    pox.openflow.launch() # Default OpenFlow launch
 
 
 def _post_startup ():
   if _options.enable_openflow:
-    if core._openflow_wanted:
-      if not core.hasComponent("of_01"):
-        # Launch a default of_01
-        import pox.openflow.of_01
-        pox.openflow.of_01.launch()
-    else:
-      logging.getLogger("boot").debug("Not launching of_01")
-
+    pox.openflow.of_01.launch() # Usually, we launch of_01
 
 
 def _setup_logging ():
