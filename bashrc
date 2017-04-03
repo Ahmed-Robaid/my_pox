@@ -58,11 +58,11 @@ fi
 
 if [ "$color_prompt" = yes ]; then
 #    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-     PS1="\[\e[00;36m\]\n\t \[\e[0m\]\[\e[01;31m\]\u\[\e[0m\]\[\e[00;37m\]@\[\e[0m\]\[\e[01;34m\]\H\[\e[0m\]\[\e[00;37m\]:\l:\[\e[0m\]\[\e[01;37m\]\w\[\e[0m\]\[\e[00;37m\] \\$ \[\e[0m\]"
+     PS1="\[\e[00;36m\]\n\t \[\e[0m\]\[\e[01;31m\]\u\[\e[0m\]\[\e[00;37m\]@\[\e[0m\]\[\e[01;35m\]\H\[\e[0m\]\[\e[00;37m\]:\l:\[\e[0m\]\[\e[01;37m\]\w\[\e[0m\]\[\e[00;37m\] \\$ \[\e[0m\]"
 
 else
 #    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-     PS1="\[\e[00;36m\]\n\t \[\e[0m\]\[\e[01;31m\]\u\[\e[0m\]\[\e[00;37m\]@\[\e[0m\]\[\e[01;34m\]\H\[\e[0m\]\[\e[00;37m\]:\l:\[\e[0m\]\[\e[01;37m\]\w\[\e[0m\]\[\e[00;37m\] \\$ \[\e[0m\]"
+     PS1="\[\e[00;36m\]\n\t \[\e[0m\]\[\e[01;31m\]\u\[\e[0m\]\[\e[00;37m\]@\[\e[0m\]\[\e[01;35m\]\H\[\e[0m\]\[\e[00;37m\]:\l:\[\e[0m\]\[\e[01;37m\]\w\[\e[0m\]\[\e[00;37m\] \\$ \[\e[0m\]"
 
 fi
 unset color_prompt force_color_prompt
@@ -92,6 +92,12 @@ fi
 alias ll='ls -alF'
 alias la='ls -A'
 alias l='ls -CF'
+alias emulator4="sudo /opt/emulator -avd 4Android"
+alias emulator5="sudo /opt/emulator -avd 5Android"
+alias emulator6="sudo /opt/emulator -avd 6Android"
+alias emulator7="sudo /opt/emulator -avd 7Android"
+alias sdkmananger="sudo /opt/tools/android"
+alias jdgui="sudo java -jar /opt/jd-gui.jar"
 
 # Add an "alert" alias for long running commands.  Use like so:
 #   sleep 10; alert
